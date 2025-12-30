@@ -1,1 +1,390 @@
 # credit-card
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>現金流戰略中心 (雲端版)</title>
+    
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    
+    <!-- 🔥 1. 引入 Firebase SDK (必須放在這裡) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F8FAFC; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        [v-cloak] { display: none; }
+        .progress-bar { transition: width 0.5s ease-out; }
+        .slide-enter-active, .slide-leave-active { transition: all 0.3s ease; }
+        .slide-enter-from, .slide-leave-to { transform: translateY(20px); opacity: 0; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        /* 連線狀態燈號 */
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .status-online { background-color: #4ade80; box-shadow: 0 0 5px #4ade80; }
+        .status-offline { background-color: #f87171; }
+    </style>
+</head>
+<body class="text-slate-600">
+
+<div id="app" v-cloak class="max-w-md mx-auto min-h-screen flex flex-col relative bg-slate-50">
+
+    <!-- 1. 資產儀表板 -->
+    <section class="bg-indigo-900 text-white pt-8 pb-12 px-6 rounded-b-[2.5rem] shadow-xl relative overflow-hidden z-10">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
+        
+        <div class="flex justify-between items-center mb-6 relative z-10">
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-indigo-200 text-xs font-bold uppercase tracking-wider">預估淨資產</span>
+                    <!-- 連線狀態燈 -->
+                    <div :class="['status-dot', isConnected ? 'status-online' : 'status-offline']" :title="isConnected ? '已連線同步' : '斷線中'"></div>
+                </div>
+                <div class="text-4xl font-mono font-black tracking-tight" :class="netBalance < 0 ? 'text-red-400' : 'text-white'">
+                    $ {{ formatMoney(netBalance) }}
+                </div>
+            </div>
+            <button @click="showSettings = true" class="bg-white/10 p-2.5 rounded-full hover:bg-white/20 transition backdrop-blur-sm">
+                <i class="ph-bold ph-sliders-horizontal text-xl"></i>
+            </button>
+        </div>
+
+        <div class="relative z-10">
+            <div class="flex justify-between text-[10px] uppercase font-bold text-indigo-300 mb-1.5">
+                <span>總負債 (卡費)</span>
+                <span>總收入 (預估)</span>
+            </div>
+            <div class="h-3 bg-indigo-950/50 rounded-full overflow-hidden flex border border-white/10">
+                <div class="bg-red-400 h-full progress-bar" :style="{ width: debtRatio + '%' }"></div>
+                <!-- 綠色剩餘 -->
+                <div class="bg-green-400 h-full flex-1"></div>
+            </div>
+            <div class="flex justify-between text-xs font-mono font-bold mt-1.5">
+                <span class="text-red-300">$ {{ formatMoney(totalDebt) }}</span>
+                <span class="text-green-300">$ {{ formatMoney(totalIncome) }}</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. 日期與決策區 -->
+    <main class="flex-1 px-4 -mt-6 pb-24 relative z-20">
+        <div class="bg-white p-3 rounded-2xl shadow-lg border border-slate-100 flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-50 text-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center">
+                    <i class="ph-bold ph-calendar-check text-xl"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-bold uppercase">預計消費日</div>
+                    <input type="date" v-model="spendingDate" class="font-mono font-bold text-slate-700 bg-transparent outline-none p-0 w-32 cursor-pointer">
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500 font-bold" v-if="loading">同步中...</span>
+                <span class="text-[10px] bg-indigo-50 px-2 py-1 rounded text-indigo-600 font-bold" v-else>雲端已同步</span>
+            </div>
+        </div>
+
+        <div v-if="rankedCards.length > 0" class="space-y-4">
+            
+            <!-- 冠軍卡片 -->
+            <div class="relative group">
+                <div class="absolute -top-3 left-4 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow z-10 border-2 border-white">
+                    🏆 最佳現金流
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 group-hover:border-green-400 transition-colors">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <div class="text-lg font-black text-slate-800">{{ rankedCards[0].cardName }}</div>
+                            <div class="text-xs text-slate-400 font-mono mt-0.5">目前帳單: ${{ formatMoney(rankedCards[0].currentDebt) }}</div>
+                        </div>
+                        <div class="text-right bg-green-50 px-2 py-1 rounded-lg">
+                            <div class="text-2xl font-mono font-black text-green-600 leading-none">{{ rankedCards[0].daysDiff }}</div>
+                            <div class="text-[9px] font-bold text-green-400 uppercase text-center">天免息</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 mb-3">
+                        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                            <div class="bg-slate-300 h-full" style="width: 20%"></div>
+                            <div class="bg-green-400 h-full opacity-50" style="width: 60%"></div>
+                            <div class="bg-red-400 h-full" style="width: 20%"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 rounded-xl p-3 text-xs flex justify-between items-center border border-slate-100">
+                        <div class="flex flex-col">
+                            <span class="text-slate-400 mb-0.5 font-bold">繳款日</span>
+                            <span class="font-mono font-bold text-slate-700">{{ formatDate(rankedCards[0].dueDate) }}</span>
+                        </div>
+                        <i class="ph-bold ph-arrow-right text-slate-300"></i>
+                        <div class="flex flex-col items-end text-right">
+                            <span class="text-slate-400 mb-0.5 font-bold">資金來源</span>
+                            <span class="font-bold text-indigo-600">{{ rankedCards[0].payerName }}</span>
+                            <span class="text-[9px] text-slate-400 font-mono">(${{formatMoney(rankedCards[0].payerAmount)}})</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 其他 -->
+            <div class="pl-2 mt-6 mb-2 text-xs font-bold text-slate-400 uppercase">其他選擇</div>
+            
+            <div v-for="(card, idx) in rankedCards.slice(1)" :key="idx" class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center opacity-75 hover:opacity-100 transition">
+                <div>
+                    <div class="font-bold text-slate-700">{{ card.cardName }}</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5 flex gap-2">
+                        <span>帳單: ${{ formatMoney(card.currentDebt) }}</span>
+                        <span class="text-slate-300">|</span>
+                        <span>延後 {{ card.daysDiff }} 天</span>
+                    </div>
+                </div>
+                <div class="text-right flex flex-col items-end">
+                    <span class="text-[10px] bg-slate-100 px-1.5 rounded text-slate-500 mb-1">{{ formatDate(card.dueDate) }} 繳</span>
+                    <span class="text-[10px] font-bold text-indigo-500">{{ card.payerName }}</span>
+                </div>
+            </div>
+        </div>
+        <div v-else class="text-center py-10 text-slate-400">
+             <i class="ph-duotone ph-cloud-slash text-4xl mb-2 opacity-50"></i>
+             <p v-if="loading">正在連線到雲端...</p>
+             <p v-else>還沒有資料，去設定新增吧！</p>
+        </div>
+    </main>
+
+    <!-- 設定 Modal -->
+    <div v-if="showSettings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click.self="showSettings = false">
+        <div class="bg-white w-full max-w-lg h-[90vh] sm:h-auto rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-slide-up overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-lg text-slate-800">📊 財務設定</h3>
+                    <span class="text-[9px] bg-red-100 text-red-500 px-1.5 rounded" v-if="!isConnected">未連線</span>
+                    <span class="text-[9px] bg-green-100 text-green-500 px-1.5 rounded" v-else>同步中</span>
+                </div>
+                <!-- 這裡改成直接觸發上傳 -->
+                <button @click="saveAndClose" class="bg-slate-900 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow hover:bg-slate-700 transition">
+                    <i class="ph-bold ph-cloud-arrow-up mr-1"></i>上傳並關閉
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-5 space-y-8 bg-slate-50/50">
+                <!-- 卡片區 (結構相同) -->
+                <section>
+                    <div class="flex justify-between items-end mb-3">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">信用卡卡況</label>
+                    </div>
+                    <div class="space-y-3">
+                        <div v-for="(card, i) in cards" :key="i" class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm relative group">
+                            <button @click="cards.splice(i, 1)" class="absolute -top-2 -right-2 bg-red-100 text-red-500 w-6 h-6 rounded-full flex items-center justify-center shadow-sm"><i class="ph-bold ph-x text-xs"></i></button>
+                            
+                            <div class="flex gap-2 mb-2">
+                                <input v-model="card.name" class="flex-1 font-bold text-sm bg-transparent outline-none" placeholder="卡片名稱">
+                                <span class="text-xs font-bold text-slate-400 flex items-center">負債 $</span>
+                                <input type="number" v-model.number="card.currentDebt" class="w-20 font-mono font-bold text-right text-red-500 bg-red-50 rounded px-1 outline-none">
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="bg-slate-50 p-1.5 rounded border border-slate-100 flex justify-between items-center">
+                                    <span class="text-slate-400 font-bold">結帳日</span>
+                                    <div><input type="number" v-model.number="card.closeDay" class="w-6 bg-transparent text-center font-bold outline-none"> 號</div>
+                                </div>
+                                <div class="bg-slate-50 p-1.5 rounded border border-slate-100 flex justify-between items-center">
+                                    <span class="text-slate-400 font-bold">繳款間隔</span>
+                                    <div><input type="number" v-model.number="card.payGap" class="w-6 bg-transparent text-center font-bold outline-none"> 天</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button @click="addCard" class="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-slate-400 text-xs font-bold transition">+ 新增卡片</button>
+                    </div>
+                </section>
+
+                <!-- 薪水區 (結構相同) -->
+                <section>
+                    <div class="flex justify-between items-end mb-3">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">收入預估</label>
+                    </div>
+                    <div class="space-y-3">
+                        <div v-for="(sal, i) in salaries" :key="i" class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 relative group">
+                            <button @click="salaries.splice(i, 1)" class="absolute -top-2 -right-2 bg-red-100 text-red-500 w-6 h-6 rounded-full flex items-center justify-center shadow-sm"><i class="ph-bold ph-x text-xs"></i></button>
+                            <div class="flex-1">
+                                <input v-model="sal.name" class="font-bold text-sm bg-transparent outline-none w-full mb-1" placeholder="收入名稱">
+                                <div class="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 inline-flex px-1.5 py-0.5 rounded">
+                                    <span>每月</span>
+                                    <input type="number" v-model.number="sal.payDay" class="w-4 bg-transparent text-center font-bold outline-none text-slate-600">
+                                    <span>號發</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <label class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">預估入帳</label>
+                                <div class="flex items-center bg-green-50 rounded-lg px-2 py-1 border border-green-100">
+                                    <span class="text-green-600 text-xs font-bold mr-1">$</span>
+                                    <input type="number" v-model.number="sal.amount" class="w-16 bg-transparent text-right font-mono font-bold text-green-700 outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        <button @click="addSalary" class="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-slate-400 text-xs font-bold transition">+ 新增來源</button>
+                    </div>
+                </section>
+                <div class="h-6"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    // 🔥🔥🔥【關鍵步驟】請把這裡換成你從 Firebase 複製的設定 🔥🔥🔥
+    // 請複製整個 const firebaseConfig = { ... }; 貼上覆蓋下面這幾行
+    const firebaseConfig = {
+  apiKey: "AIzaSyBCvq1YfQh8yEtwjIluuVxNFXzZHi7mYIo",
+  authDomain: "cash-flow-hunter.firebaseapp.com",
+  databaseURL: "https://cash-flow-hunter-default-rtdb.firebaseio.com",
+  projectId: "cash-flow-hunter",
+  storageBucket: "cash-flow-hunter.firebasestorage.app",
+  messagingSenderId: "389480711948",
+  appId: "1:389480711948:web:a67603ad27b3176240eb29"
+};
+
+    // 初始化 Firebase (如果沒填 Config 會報錯，這裡加個防呆)
+    let db;
+    try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+    } catch(e) {
+        console.error("Firebase 初始化失敗，請檢查 Config", e);
+    }
+
+    // ⭐ 我們把資料儲存在資料庫的 'my_wealth_data' 這個路徑下
+    // 如果你想跟別人不一樣，可以改這個名字，例如 'user123_data'
+    const DB_PATH = 'my_wealth_data';
+
+    createApp({
+        setup() {
+            const showSettings = ref(false);
+            const spendingDate = ref(new Date().toISOString().split('T')[0]);
+            const isConnected = ref(false);
+            const loading = ref(true);
+
+            // 預設空資料 (等雲端載入)
+            const cards = ref([]);
+            const salaries = ref([]);
+
+            const defaultCards = [{ name: 'CUBE卡', closeDay: 27, payGap: 15, currentDebt: 0 }];
+            const defaultSalaries = [{ name: '底薪', payDay: 5, amount: 40000 }];
+
+            // --- 核心：雲端同步邏輯 ---
+            onMounted(() => {
+                if (!db) return;
+
+                const dataRef = db.ref(DB_PATH);
+                
+                // 監聽雲端資料變化 (Real-time listener)
+                dataRef.on('value', (snapshot) => {
+                    loading.value = false;
+                    const val = snapshot.val();
+                    
+                    if (val) {
+                        isConnected.value = true;
+                        // 如果雲端有資料，就用雲端的。防止 undefined 導致 app 壞掉
+                        cards.value = val.cards || [];
+                        salaries.value = val.salaries || [];
+                    } else {
+                        // 如果雲端是空的 (第一次用)，就用預設值，並馬上上傳
+                        cards.value = defaultCards;
+                        salaries.value = defaultSalaries;
+                        saveToCloud(); 
+                    }
+                }, (error) => {
+                    console.error("讀取失敗:", error);
+                    isConnected.value = false;
+                });
+
+                // 檢查連線狀態
+                db.ref('.info/connected').on('value', snap => {
+                    isConnected.value = !!snap.val();
+                });
+            });
+
+            // 上傳資料到雲端
+            const saveToCloud = () => {
+                if (!db) return;
+                // 使用 JSON.parse(JSON.stringify(...)) 移除 Vue 的 Proxy 屬性，確保資料乾淨
+                db.ref(DB_PATH).set({
+                    cards: JSON.parse(JSON.stringify(cards.value)),
+                    salaries: JSON.parse(JSON.stringify(salaries.value)),
+                    lastUpdated: new Date().toISOString()
+                }).then(() => {
+                    console.log("上傳成功");
+                }).catch(e => {
+                    alert("上傳失敗: " + e.message);
+                });
+            };
+
+            const saveAndClose = () => {
+                saveToCloud(); // 觸發上傳
+                showSettings.value = false;
+            };
+
+            // --- 財務計算邏輯 (不用改) ---
+            const totalDebt = computed(() => cards.value.reduce((sum, c) => sum + (Number(c.currentDebt) || 0), 0));
+            const totalIncome = computed(() => salaries.value.reduce((sum, s) => sum + (Number(s.amount) || 0), 0));
+            const netBalance = computed(() => totalIncome.value - totalDebt.value);
+            const debtRatio = computed(() => totalIncome.value === 0 ? 100 : Math.min((totalDebt.value / totalIncome.value) * 100, 100));
+
+            const formatDate = (val) => {
+                if(!val) return '--/--';
+                try { const d = new Date(val); return isNaN(d) ? '--/--' : `${d.getMonth()+1}/${d.getDate()}`; } catch { return '--/--'; }
+            };
+            const formatMoney = (val) => Number(val).toLocaleString();
+
+            const rankedCards = computed(() => {
+                const spend = new Date(spendingDate.value);
+                if (isNaN(spend.getTime())) return [];
+                return cards.value.map(card => {
+                    let stmtDate = new Date(spend.getFullYear(), spend.getMonth(), card.closeDay);
+                    if (spend.getDate() > card.closeDay) stmtDate.setMonth(stmtDate.getMonth() + 1);
+                    let dueDate = new Date(stmtDate);
+                    dueDate.setDate(dueDate.getDate() + (card.payGap || 15));
+
+                    let bestPayer = { name: '存款', amount: 0, date: new Date() };
+                    let minGap = Infinity;
+                    if (salaries.value.length > 0) {
+                        salaries.value.forEach(salary => {
+                            let payDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), salary.payDay);
+                            if (payDate > dueDate) payDate.setMonth(payDate.getMonth() - 1);
+                            const gap = dueDate - payDate;
+                            if (gap >= 0 && gap < minGap) {
+                                minGap = gap; bestPayer = { name: salary.name, amount: salary.amount||0, date: payDate };
+                            }
+                        });
+                    }
+                    return {
+                        cardName: card.name, currentDebt: card.currentDebt||0,
+                        dueDate, daysDiff: Math.ceil((dueDate - spend)/(86400000)),
+                        payerName: bestPayer.name, payerAmount: bestPayer.amount, payerDate: bestPayer.date
+                    };
+                }).sort((a,b)=>b.daysDiff-a.daysDiff);
+            });
+
+            const addCard = () => cards.value.push({ name: '', closeDay: 1, payGap: 15, currentDebt: 0 });
+            const addSalary = () => salaries.value.push({ name: '', payDay: 5, amount: 0 });
+
+            return {
+                showSettings, spendingDate, cards, salaries, rankedCards, 
+                totalDebt, totalIncome, netBalance, debtRatio, isConnected, loading,
+                formatDate, formatMoney, addCard, addSalary, saveAndClose
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
