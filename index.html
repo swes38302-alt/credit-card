@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>資金流向戰略 (V23 修正版)</title>
+    <title>資金流向戰略 (V25 精準週期)</title>
     
     <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -68,21 +68,17 @@
         .drill-section:last-child { border-left: none; }
         .drill-dot { position: absolute; left: -0.55rem; top: 0; width: 1rem; height: 1rem; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 2; }
         
-        /* Modal Date Input Fix */
-        .modal-date-input { 
-            background: rgba(255,255,255,0.2); 
-            border: 1px solid rgba(255,255,255,0.3); 
-            color: white; 
-            font-family: 'JetBrains Mono', monospace; 
-            font-weight: bold; 
-            border-radius: 0.5rem; 
-            padding: 0.5rem; 
-            width: 100%; 
-            outline: none; 
-            text-align: center;
-            cursor: pointer;
-        }
+        .modal-date-input { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; font-family: 'JetBrains Mono', monospace; font-weight: bold; border-radius: 0.5rem; padding: 0.5rem; width: 100%; outline: none; text-align: center; cursor: pointer; }
         .modal-date-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        
+        .travel-bg { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); }
+        .travel-card { background: white; border-radius: 1rem; padding: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 0.75rem; border: 1px solid #f3f4f6; }
+
+        /* V25 Date Setting Styles */
+        .date-setting-row { display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px 10px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 6px; }
+        .date-setting-label { font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; white-space: nowrap; }
+        .date-setting-input { background: transparent; font-family: 'JetBrains Mono', monospace; font-weight: bold; font-size: 13px; outline: none; color: #334155; width: 100%; cursor: pointer;}
+        .date-setting-preview { font-size: 10px; color: #6366f1; font-weight: bold; margin-left: auto; white-space: nowrap; }
     </style>
 </head>
 <body class="text-slate-600 flex flex-col transition-colors duration-500" :class="currentRole === 'me' ? 'bg-indigo-50/50' : 'bg-slate-200'">
@@ -105,7 +101,7 @@
     </header>
 
     <div class="flex-1 flex flex-col lg:flex-row p-4 lg:p-6 gap-4 lg:overflow-hidden">
-        <!-- 左側面板 -->
+        <!-- 左側面板 (保持不變) -->
         <section class="text-white pt-6 pb-8 px-6 rounded-[2rem] shadow-2xl relative shrink-0 lg:w-[22rem] flex flex-col transition-colors duration-500 lg:h-full lg:overflow-hidden" :class="currentRole === 'me' ? 'theme-me-bg' : 'theme-bf-bg'">
             <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
             <div class="flex justify-between items-center mb-6 relative z-10">
@@ -146,8 +142,13 @@
                         <div class="relative group"><div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="ph-bold ph-currency-dollar text-slate-400 group-focus-within:text-indigo-500 text-xl"></i></div><input type="number" v-model.number="spendingAmount" placeholder="0" class="block w-full pl-10 pr-3 py-3 border-2 border-slate-100 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-300 focus:outline-none focus:bg-white text-xl font-mono font-black transition shadow-inner" :class="currentRole==='me'?'focus:border-indigo-500':'focus:border-sky-500'"></div>
                     </div>
                     <div class="col-span-7 sm:col-span-8">
-                        <div class="text-[10px] text-slate-400 font-bold uppercase mb-1 ml-1">計畫消費日</div>
-                        <div class="relative group h-[52px]"><div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-30"><i class="ph-bold ph-calendar-blank text-slate-400 text-xl"></i></div><div class="date-input-container border-2 border-slate-100 rounded-xl bg-slate-50 focus-within:bg-white focus-within:shadow-md transition-all" :class="currentRole==='me'?'focus-within:border-indigo-500':'focus-within:border-sky-500'"><div class="date-input-display">{{ formatDateDisplay(spendingDate) }}</div><input type="date" v-model="spendingDate" class="date-input-real"></div></div>
+                        <button @click="showTravelModal = true" class="w-full h-[52px] border-2 border-dashed border-purple-300 bg-purple-50 text-purple-600 rounded-xl shadow-sm hover:bg-purple-100 transition flex items-center justify-center gap-2 group">
+                            <i class="ph-fill ph-airplane-tilt text-xl group-hover:rotate-12 transition"></i>
+                            <div class="text-left">
+                                <div class="text-[10px] font-bold uppercase opacity-60 leading-none">Multi/Travel</div>
+                                <div class="font-bold text-sm">✈️ 專案試算</div>
+                            </div>
+                        </button>
                     </div>
                     <div class="col-span-5 sm:col-span-4">
                         <button @click="autoRecommendDate" class="w-full h-[52px] text-white rounded-xl shadow-lg transition active:scale-95 flex flex-col items-center justify-center relative overflow-hidden group hover:shadow-xl" :class="currentRole === 'me' ? 'magic-btn-me shadow-indigo-200' : 'magic-btn-bf shadow-sky-200'"><div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div><i class="ph-fill ph-magic-wand text-xl mb-0.5 relative z-10"></i><span class="text-[10px] font-bold relative z-10 tracking-widest">幫我算</span></button>
@@ -156,7 +157,8 @@
                 <div v-if="recommendationMsg" class="mt-3 text-xs px-4 py-3 rounded-xl items-start gap-3 flex animate-fade-in border-l-4 shadow-sm" :class="currentRole==='me'?'bg-indigo-50 text-indigo-700 border-indigo-500':'bg-sky-50 text-sky-700 border-sky-500'"><i class="ph-fill ph-check-circle text-lg mt-0.5"></i><div class="flex-1 font-bold leading-relaxed">{{ recommendationMsg }}</div><button @click="recommendationMsg=''" class="opacity-50 hover:opacity-100 p-1"><i class="ph-bold ph-x"></i></button></div>
             </div>
 
-            <div class="flex-1 lg:overflow-y-auto pb-24 lg:pb-0 pr-0 lg:pr-2 space-y-4 animate-fade-in lg:custom-scrollbar">
+            <!-- 卡片列表區... -->
+             <div class="flex-1 lg:overflow-y-auto pb-24 lg:pb-0 pr-0 lg:pr-2 space-y-4 animate-fade-in lg:custom-scrollbar">
                 <div v-if="rankedCards.length > 0" class="space-y-4">
                     <div class="relative group mt-2 mx-1">
                         <div class="absolute -top-3 left-4 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg z-20 border-2 border-white flex items-center gap-1" :class="currentRole === 'me' ? 'bg-indigo-500' : 'bg-slate-700'"><i class="ph-fill ph-crown"></i> 首選主力卡</div>
@@ -167,21 +169,16 @@
                             </div>
                             <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-4 relative overflow-hidden">
                                 <div class="flex flex-col gap-3 relative z-10">
-                                    <div class="flex justify-between text-[11px] font-bold text-slate-400 uppercase"><span>消費日</span><span>實際繳款日</span></div>
-                                    <div class="flex items-center justify-between font-mono font-bold text-slate-700 -mt-1"><span>{{ formatDateDisplay(spendingDate) }}</span><div class="h-0.5 flex-1 bg-slate-200 mx-3 relative"><div class="absolute right-0 -top-1 w-2 h-2 rounded-full bg-slate-300"></div></div><span class="text-lg text-indigo-900 border-b-2 border-indigo-200">{{ formatDateDisplay(rankedCards[0].dueDate) }}</span></div>
-                                    <div class="bg-white rounded-xl p-3 border border-slate-100 shadow-sm mt-1">
-                                        <div class="text-[10px] uppercase font-bold text-slate-400 mb-2 border-b border-slate-100 pb-1">繳款日 資金預估明細</div>
-                                        <div class="flex justify-between items-center text-xs mb-1"><span class="flex items-center gap-1 font-bold text-slate-500"><i class="ph-bold ph-wallet"></i> 現有存款</span><span class="font-mono font-bold text-slate-600">${{ formatMoney(totalLiquidAssets) }}</span></div>
-                                        <div v-if="rankedCards[0].validIncomes.length > 0" class="space-y-1 my-2"><div v-for="inc in rankedCards[0].validIncomes" class="flex justify-between items-center text-xs"><span class="flex items-center gap-1 font-bold text-emerald-600"><i class="ph-fill ph-check-circle"></i> {{ inc.dateStr }} 入帳</span><span class="font-mono font-bold text-emerald-600">+${{ formatMoney(inc.amount) }}</span></div></div>
-                                        <div v-else class="text-xs text-slate-400 italic my-2">⚠ 期間無薪水入帳</div>
-                                        <div v-if="rankedCards[0].validExpenses.length > 0" class="space-y-1 my-2 border-t border-dashed border-slate-200 pt-2"><div v-for="exp in rankedCards[0].validExpenses" class="flex justify-between items-center text-xs"><span class="flex items-center gap-1 font-bold text-orange-400"><i class="ph-fill ph-house-line"></i> {{ exp.dateStr }} 扣款</span><span class="font-mono font-bold text-orange-400">-${{ formatMoney(exp.amount) }}</span></div></div>
-                                        <div class="border-t border-slate-100 pt-2 space-y-1 mt-1"><div class="flex justify-between items-center text-xs text-red-500"><span class="flex items-center gap-1 font-bold"><i class="ph-fill ph-minus-circle"></i> 需償還現有負債</span><span class="font-mono font-bold">-${{ formatMoney(totalDebt) }}</span></div><div v-if="spendingAmount>0" class="flex justify-between items-center text-xs text-red-500"><span class="flex items-center gap-1 font-bold"><i class="ph-fill ph-minus-circle"></i> 本次計畫消費</span><span class="font-mono font-bold">-${{ formatMoney(spendingAmount) }}</span></div></div>
+                                    <div class="flex gap-2 items-center mb-1">
+                                         <i class="ph-fill ph-calendar-check text-slate-400"></i>
+                                         <span class="text-sm font-bold text-indigo-900 border-b-2 border-indigo-200">繳款日: {{ formatDateDisplay(rankedCards[0].dueDate) }}</span>
                                     </div>
                                     <div class="flex justify-between items-end pt-1"><span class="text-xs font-bold text-slate-600 pb-1">繳款後餘額</span><div class="text-2xl font-mono font-black leading-none" :class="rankedCards[0].finalAccountBalance < 0 ? 'text-red-500' : 'text-indigo-600'">${{ formatMoney(rankedCards[0].finalAccountBalance) }}</div></div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                     <!-- Other Cards -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-1"><div v-for="(card, idx) in rankedCards.slice(1)" :key="idx" class="p-4 rounded-xl border bg-white flex flex-col justify-between transition relative overflow-hidden hover:shadow-md" :class="card.isOverLimit ? 'border-red-200 opacity-60' : 'border-slate-100'"><div class="flex justify-between items-start mb-2"><div class="font-bold text-slate-700 text-lg">{{ card.cardName }}</div><span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ formatDateDisplay(card.dueDate) }} 繳款</span></div><div class="flex justify-between items-end"><div class="text-[10px] text-slate-400 font-mono"><div v-if="card.finalAccountBalance >= 0" class="text-emerald-500 font-bold">餘額夠付 ✅</div><div v-else class="text-red-400 font-bold">餘額不足 ❌</div></div><div class="font-bold text-sm" :class="currentRole==='me'?'text-indigo-500':'text-sky-600'">+{{ card.daysDiff }} 天</div></div></div></div>
                 </div>
                 <div v-else class="text-center py-24 text-slate-400"><p class="font-bold">尚無可用「主力卡」</p><p class="text-xs mt-1">請至設定確認卡片類型</p></div>
@@ -189,45 +186,23 @@
         </main>
     </div>
 
-    <!-- 資金預演 Modal -->
+    <!-- Modals (Drill & Travel) unchanged from V24, retaining functionality -->
+    <!-- Drill Modal -->
     <div v-if="showDrillModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" @click.self="showDrillModal = false">
         <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="bg-indigo-600 p-5 shrink-0">
                 <div class="flex justify-between items-center mb-4"><h3 class="text-white font-bold text-xl flex items-center gap-2"><i class="ph-fill ph-strategy"></i> 資金戰略預演</h3><button @click="showDrillModal=false" class="text-white/70 hover:text-white"><i class="ph-bold ph-x text-xl"></i></button></div>
-                <!-- 🔥 V23: 修復點擊問題 (還原為實體 Input) -->
                 <div class="flex flex-col gap-1">
                     <label class="text-indigo-200 text-xs font-bold uppercase">預演基準日</label>
                     <input type="date" v-model="drillDate" class="modal-date-input">
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto p-5 custom-scrollbar bg-slate-50">
-                <div class="space-y-4">
-                    <!-- 收入 -->
-                    <div class="drill-section">
-                        <div class="drill-dot bg-emerald-500"></div><h4 class="text-xs font-bold text-slate-500 uppercase mb-2">期間收入 (Today ~ 預演日)</h4>
-                        <div v-if="drillResult.incomes.length > 0" class="space-y-2"><div v-for="inc in drillResult.incomes" class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center"><span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-arrow-down-left text-emerald-500"></i> {{ inc.dateStr }} {{ inc.name }}</span><span class="font-mono font-bold text-emerald-600">+${{ formatMoney(inc.amount) }}</span></div></div>
-                        <div v-else class="text-xs text-slate-400 italic pl-2">期間內無預期收入</div>
-                    </div>
-                    <!-- 支出 -->
-                    <div class="drill-section">
-                        <div class="drill-dot bg-orange-400"></div><h4 class="text-xs font-bold text-slate-500 uppercase mb-2">固定支出 (Today ~ 預演日)</h4>
-                        <div v-if="drillResult.expenses.length > 0" class="space-y-2"><div v-for="exp in drillResult.expenses" class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center"><span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-arrow-up-right text-orange-500"></i> {{ exp.dateStr }} {{ exp.name }}</span><span class="font-mono font-bold text-orange-500">-${{ formatMoney(exp.amount) }}</span></div></div>
-                        <div v-else class="text-xs text-slate-400 italic pl-2">期間內無固定扣款</div>
-                    </div>
-                    <!-- 🔥 V23 修正：只列出「未過期」且「預演日前到期」的卡費 -->
-                    <div class="drill-section">
-                        <div class="drill-dot bg-red-500"></div><h4 class="text-xs font-bold text-slate-500 uppercase mb-2">應繳卡費 (Today ~ 預演日)</h4>
-                        <div v-if="drillResult.cards.length > 0" class="space-y-2">
-                             <div v-for="card in drillResult.cards" class="bg-white p-3 rounded-lg shadow-sm flex justify-between items-center border border-red-100">
-                                <div>
-                                    <span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-credit-card text-red-500"></i> {{ card.name }}</span>
-                                    <div class="text-[10px] text-red-400 pl-6">繳款期限: {{ card.dueDate }}</div>
-                                </div>
-                                <span class="font-mono font-bold text-red-500">-${{ formatMoney(card.amount) }}</span>
-                            </div>
-                        </div>
-                        <div v-else class="text-xs text-slate-400 italic pl-2">期間內無需繳納卡費</div>
-                    </div>
+                 <!-- Drill Content V23 Logic -->
+                 <div class="space-y-4">
+                    <div class="drill-section"><div class="drill-dot bg-emerald-500"></div><h4 class="text-xs font-bold text-slate-500 uppercase mb-2">期間收入 (Today ~ 預演日)</h4><div v-if="drillResult.incomes.length > 0" class="space-y-2"><div v-for="inc in drillResult.incomes" class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center"><span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-arrow-down-left text-emerald-500"></i> {{ inc.dateStr }} {{ inc.name }}</span><span class="font-mono font-bold text-emerald-600">+${{ formatMoney(inc.amount) }}</span></div></div><div v-else class="text-xs text-slate-400 italic pl-2">期間內無預期收入</div></div>
+                    <div class="drill-section"><div class="drill-dot bg-orange-400"></div><h4 class="text-xs font-bold text-slate-500 uppercase mb-2">固定支出 (Today ~ 預演日)</h4><div v-if="drillResult.expenses.length > 0" class="space-y-2"><div v-for="exp in drillResult.expenses" class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center"><span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-arrow-up-right text-orange-500"></i> {{ exp.dateStr }} {{ exp.name }}</span><span class="font-mono font-bold text-orange-500">-${{ formatMoney(exp.amount) }}</span></div></div><div v-else class="text-xs text-slate-400 italic pl-2">期間內無固定扣款</div></div>
+                    <div class="drill-section"><div class="drill-dot bg-red-500"></div><h4 class="text-xs font-bold text-slate-500 uppercase mb-2">應繳卡費 (Today ~ 預演日)</h4><div v-if="drillResult.cards.length > 0" class="space-y-2"><div v-for="card in drillResult.cards" class="bg-white p-3 rounded-lg shadow-sm flex justify-between items-center border border-red-100"><div><span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-credit-card text-red-500"></i> {{ card.name }}</span><div class="text-[10px] text-red-400 pl-6">繳款期限: {{ card.dueDate }}</div></div><span class="font-mono font-bold text-red-500">-${{ formatMoney(card.amount) }}</span></div></div><div v-else class="text-xs text-slate-400 italic pl-2">期間內無需繳納卡費</div></div>
                 </div>
             </div>
             <div class="p-5 bg-white border-t border-slate-100 shrink-0">
@@ -236,14 +211,34 @@
             </div>
         </div>
     </div>
+    <!-- Travel Modal -->
+    <div v-if="showTravelModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" @click.self="showTravelModal = false">
+        <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="travel-bg p-5 shrink-0">
+                <div class="flex justify-between items-center mb-4"><h3 class="text-white font-bold text-xl flex items-center gap-2"><i class="ph-fill ph-airplane-tilt"></i> 專案/旅遊預算</h3><button @click="showTravelModal=false" class="text-white/70 hover:text-white"><i class="ph-bold ph-x text-xl"></i></button></div>
+                <div class="flex gap-2 mb-2">
+                    <div class="flex-1"><label class="text-purple-100 text-[10px] font-bold uppercase block mb-1">開始日期 (In)</label><input type="date" v-model="travelStartDate" class="modal-date-input"></div>
+                    <div class="flex-1"><label class="text-purple-100 text-[10px] font-bold uppercase block mb-1">結束日期 (Out)</label><input type="date" v-model="travelEndDate" class="modal-date-input"></div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 custom-scrollbar bg-slate-50">
+                 <!-- Travel Content V24 -->
+                 <div class="mb-6"><div class="flex justify-between items-end mb-2"><h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">📋 預定消費清單</h4><span class="text-xs font-bold text-purple-600">總計: ${{ formatMoney(travelTotal) }}</span></div><div class="space-y-2"><div v-for="(item, idx) in travelItems" :key="idx" class="flex gap-2"><input v-model="item.name" placeholder="項目 (如: 機票)" class="w-1/3 bg-white border border-slate-200 rounded px-2 py-1.5 text-xs font-bold outline-none focus:border-purple-400"><input type="number" v-model.number="item.amount" placeholder="金額" class="flex-1 bg-white border border-slate-200 rounded px-2 py-1.5 text-xs font-mono font-bold outline-none focus:border-purple-400"><button @click="travelItems.splice(idx,1)" class="text-slate-300 hover:text-red-400 px-1"><i class="ph-bold ph-trash"></i></button></div><button @click="travelItems.push({name:'', amount:null})" class="w-full py-2 border border-dashed border-purple-200 text-purple-400 rounded-lg text-xs font-bold hover:bg-purple-50 transition">+ 新增消費</button></div></div>
+                 <div class="mb-4"><h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">💰 期間現金流 (To: {{ formatDateDisplay(travelEndDate) }})</h4><div class="bg-white rounded-xl p-3 shadow-sm border border-slate-100 text-xs space-y-1"><div class="flex justify-between"><span class="text-slate-500">此時原存款</span><span class="font-mono font-bold">{{ formatMoney(totalLiquidAssets) }}</span></div><div class="flex justify-between text-emerald-600"><span class="flex items-center gap-1"><i class="ph-bold ph-plus"></i> 期間收入</span><span class="font-mono font-bold">{{ formatMoney(travelBudgetAnalysis.income) }}</span></div><div class="flex justify-between text-orange-500"><span class="flex items-center gap-1"><i class="ph-bold ph-minus"></i> 期間固定支出</span><span class="font-mono font-bold">-{{ formatMoney(travelBudgetAnalysis.fixedExpense) }}</span></div><div class="flex justify-between text-red-400"><span class="flex items-center gap-1"><i class="ph-bold ph-minus"></i> 期間需繳卡費</span><span class="font-mono font-bold">-{{ formatMoney(travelBudgetAnalysis.cardPayment) }}</span></div><div class="border-t border-slate-100 my-1 pt-1 flex justify-between items-center"><span class="font-bold text-slate-700">期間可用餘額</span><span class="font-mono font-black text-lg" :class="travelBudgetAnalysis.available < 0 ? 'text-red-500' : 'text-purple-600'">${{ formatMoney(travelBudgetAnalysis.available) }}</span></div><div class="text-[10px] text-slate-400 text-right">*(存款+收入-固定支出-既有卡債)</div></div></div>
+                 <div><h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">💳 若全額刷卡 (總計 ${{formatMoney(travelTotal)}})</h4><div v-if="travelCardRecommendation" class="travel-card border-l-4 border-l-purple-500 relative overflow-hidden"><div class="flex justify-between items-start"><div><div class="text-[10px] text-slate-400 font-bold uppercase mb-0.5">推薦使用</div><div class="text-xl font-black text-slate-800">{{ travelCardRecommendation.cardName }}</div></div><div class="text-right"><div class="text-2xl font-mono font-black text-purple-600">{{ formatDateDisplay(travelCardRecommendation.dueDate) }}</div><div class="text-[10px] font-bold text-purple-400 uppercase">預計繳款日</div></div></div><div class="mt-3 text-xs flex justify-between items-center bg-slate-50 p-2 rounded-lg"><span class="text-slate-500 font-bold">繳款後剩餘資金</span><span class="font-mono font-black text-lg" :class="(travelBudgetAnalysis.available - travelTotal) < 0 ? 'text-red-500' : 'text-emerald-500'">${{ formatMoney(travelBudgetAnalysis.available - travelTotal) }}</span></div></div><div v-else class="text-center text-xs text-slate-400 py-4">無可用卡片或額度不足</div></div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Settings Modal -->
+
+    <!-- 🔥 V25 Settings Modal: 支援手動修正下次結帳日 -->
     <div v-if="showSettings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click.self="showSettings = false">
         <div class="bg-white w-full max-w-lg h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-fade-in overflow-hidden">
              <div class="p-5 border-b border-slate-100 flex justify-between items-center shrink-0" :class="currentRole === 'me' ? 'bg-indigo-50' : 'bg-slate-50'">
                 <div class="flex items-center gap-3"><span class="text-3xl p-2 bg-white rounded-full shadow-sm">{{ currentRole === 'me' ? '👩' : '🧑' }}</span><div><div class="text-[10px] uppercase font-bold opacity-50 tracking-widest">{{ currentRole === 'me' ? 'My Settings' : 'BF Settings' }}</div><h3 class="font-bold text-xl text-slate-800">資產配置與卡片管理</h3></div></div><button @click="saveAndClose" class="bg-slate-900 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow hover:bg-slate-700 transition flex items-center gap-2"><i class="ph-bold ph-floppy-disk"></i> 儲存</button>
             </div>
             <div class="flex-1 overflow-y-auto p-5 space-y-8 bg-white custom-scrollbar">
+                <!-- Assets / Income / Expenses omitted for brevity, logic maintained -->
                 <section class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div class="flex justify-between items-center mb-3"><label class="text-sm font-black text-slate-700 flex items-center gap-2"><i class="ph-fill ph-coins text-yellow-500"></i> 現有資產 (存款)</label><button @click="addAsset" class="text-[10px] bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded font-bold transition">+ 新增</button></div>
                     <div class="space-y-2"><div v-for="(asset, i) in currentData.assets" :key="'asset_edit'+i" class="flex items-center gap-2"><input v-model="asset.name" placeholder="名稱" class="w-1/3 bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs font-bold outline-none"><div class="flex-1 relative"><span class="absolute left-2 top-2 text-slate-400 text-xs">$</span><input type="number" v-model.number="asset.amount" class="w-full bg-white border border-slate-200 rounded-lg pl-5 pr-2 py-2 text-sm font-mono font-bold outline-none"></div><button @click="currentData.assets.splice(i,1)" class="text-slate-400 hover:text-red-500 px-1"><i class="ph-bold ph-trash"></i></button></div></div>
@@ -256,9 +251,48 @@
                     <div class="flex justify-between items-center mb-3"><label class="text-sm font-black text-orange-800 flex items-center gap-2"><i class="ph-fill ph-house-line text-orange-500"></i> 固定支出 (房租/貸款)</label><button @click="addExpense" class="text-[10px] bg-orange-100 hover:bg-orange-200 text-orange-700 px-2 py-1 rounded font-bold transition">+ 新增</button></div>
                     <div class="space-y-2"><div v-for="(exp, i) in currentData.expenses" :key="'exp_edit'+i" class="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-100 shadow-sm relative pr-6"><div class="flex flex-col gap-1 flex-1"><input v-model="exp.name" placeholder="項目" class="bg-transparent border-b border-dashed border-slate-300 text-xs font-bold w-full outline-none"><div class="flex items-center gap-1 text-[10px] text-slate-500">每月<input type="number" v-model.number="exp.day" class="w-8 text-center border bg-slate-50 rounded">號扣</div></div><div class="w-24 relative"><span class="absolute left-1 top-1.5 text-orange-300 text-xs">$</span><input type="number" v-model.number="exp.amount" class="w-full text-right font-mono font-bold text-orange-600 outline-none h-8 bg-transparent"></div><button @click="currentData.expenses.splice(i,1)" class="absolute top-1 right-1 text-slate-300 hover:text-red-500"><i class="ph-bold ph-x-circle"></i></button></div></div>
                 </section>
+
                 <section>
-                    <div class="flex justify-between items-end mb-3 px-1"><label class="text-xs font-black text-slate-400 uppercase tracking-widest">卡片管理</label></div>
-                    <div class="space-y-3"><div v-for="(card, i) in currentData.cards" :key="'card_edit'+i" class="bg-white p-3 rounded-xl border border-slate-200 text-sm shadow-sm relative group"><button @click="currentData.cards.splice(i, 1)" class="absolute -top-2 -right-2 bg-red-100 text-red-500 w-6 h-6 rounded-full flex items-center justify-center shadow-sm z-10"><i class="ph-bold ph-x text-xs"></i></button><div class="flex justify-between items-start mb-3 gap-3"><div class="flex-1"><input v-model="card.name" class="font-bold text-base bg-slate-50 w-full px-2 py-1 rounded outline-none" placeholder="卡片名稱"></div><div class="w-24 shrink-0"><div class="type-switch"><div @click="card.type = 'main'" :class="{active: !card.type || card.type==='main'}">主力</div><div @click="card.type = 'func'" :class="{active: card.type==='func'}">功能</div></div></div></div><div class="grid grid-cols-2 gap-2 mb-2"><div><span class="text-[10px] text-slate-400 block">額度</span><input type="number" v-model.number="card.limit" class="w-full border rounded px-1 py-0.5 font-bold"></div><div><span class="text-[10px] text-slate-400 block">已刷</span><input type="number" v-model.number="card.currentDebt" class="w-full border rounded px-1 py-0.5 font-bold text-red-500 bg-red-50"></div></div><div class="flex gap-2"><span class="bg-slate-100 px-2 py-0.5 rounded text-[10px]">每月 <input type="number" v-model.number="card.closeDay" class="w-6 text-center bg-transparent border-b border-slate-300"> 號結帳</span><span class="bg-slate-100 px-2 py-0.5 rounded text-[10px]">+ <input type="number" v-model.number="card.payGap" class="w-6 text-center bg-transparent border-b border-slate-300"> 天繳款</span></div></div><button @click="addCard" class="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-400 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-2"><i class="ph-bold ph-plus-circle"></i> 新增卡片</button></div>
+                    <div class="flex justify-between items-end mb-3 px-1"><label class="text-xs font-black text-slate-400 uppercase tracking-widest">卡片管理 (可直接修改日期)</label></div>
+                    <div class="space-y-3">
+                        <div v-for="(card, i) in currentData.cards" :key="'card_edit'+i" class="bg-white p-3 rounded-xl border border-slate-200 text-sm shadow-sm relative group">
+                            <!-- Basic Remove Button -->
+                            <button @click="currentData.cards.splice(i, 1)" class="absolute -top-2 -right-2 bg-red-100 text-red-500 w-6 h-6 rounded-full flex items-center justify-center shadow-sm z-10"><i class="ph-bold ph-x text-xs"></i></button>
+                            
+                            <!-- Header Info -->
+                            <div class="flex justify-between items-start mb-3 gap-3">
+                                <div class="flex-1"><input v-model="card.name" class="font-bold text-base bg-slate-50 w-full px-2 py-1 rounded outline-none" placeholder="卡片名稱"></div>
+                                <div class="w-24 shrink-0"><div class="type-switch"><div @click="card.type = 'main'" :class="{active: !card.type || card.type==='main'}">主力</div><div @click="card.type = 'func'" :class="{active: card.type==='func'}">功能</div></div></div>
+                            </div>
+
+                            <!-- Limits & Debt -->
+                            <div class="grid grid-cols-2 gap-2 mb-2">
+                                <div><span class="text-[10px] text-slate-400 block">額度</span><input type="number" v-model.number="card.limit" class="w-full border rounded px-1 py-0.5 font-bold"></div>
+                                <div><span class="text-[10px] text-slate-400 block">已刷 (待出帳)</span><input type="number" v-model.number="card.currentDebt" class="w-full border rounded px-1 py-0.5 font-bold text-red-500 bg-red-50"></div>
+                            </div>
+                            
+                            <!-- 🔥 V25: Precision Date Control -->
+                            <div>
+                                <div class="flex gap-2 items-center text-[10px] text-slate-400 mb-1">
+                                    <span>每月固定</span>
+                                    <input type="number" v-model.number="card.closeDay" class="w-6 text-center bg-slate-100 border-b border-slate-300 font-bold" @input="updateCardDates(card)">
+                                    <span>號結帳，</span>
+                                    <span>+</span><input type="number" v-model.number="card.payGap" class="w-6 text-center bg-slate-100 border-b border-slate-300 font-bold" @input="updateCardDates(card)"><span>天繳款</span>
+                                </div>
+                                <!-- The "Surgical" Date Picker -->
+                                <div class="date-setting-row">
+                                    <div class="date-setting-label">下次結帳日</div>
+                                    <input type="date" v-model="card.nextCloseDate" class="date-setting-input" @change="forceUpdateCard(card)">
+                                </div>
+                                <div class="date-setting-row" style="background: #eff6ff; border-color: #bfdbfe;">
+                                    <div class="date-setting-label" style="color: #3b82f6;">👉 推算繳款日</div>
+                                    <div class="date-setting-input" style="color: #2563eb; cursor: default;">{{ calculateDueDate(card) }}</div>
+                                </div>
+                            </div>
+
+                        </div>
+                        <button @click="addCard" class="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-400 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-2"><i class="ph-bold ph-plus-circle"></i> 新增卡片</button>
+                    </div>
                 </section>
                 <div class="h-10"></div>
             </div>
@@ -274,9 +308,16 @@
         setup() {
             const showSettings = ref(false);
             const showDrillModal = ref(false);
+            const showTravelModal = ref(false);
+            
             const drillDate = ref(new Date().toISOString().split('T')[0]);
             const spendingDate = ref(new Date().toISOString().split('T')[0]);
             const spendingAmount = ref(null);
+            
+            const travelStartDate = ref(new Date().toISOString().split('T')[0]);
+            const travelEndDate = ref(new Date().toISOString().split('T')[0]);
+            const travelItems = ref([{name: '', amount: null}, {name: '', amount: null}]);
+
             const recommendationMsg = ref('');
             const currentRole = ref('me');
             const isSaving = ref(false);
@@ -287,9 +328,40 @@
             };
             const wealthData = ref(defaultData);
 
+            // Helpers
+            const getFullDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; // For input[type=date]
+            const getDisplayDate = (d) => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; 
+            const formatMoney = (val) => Number(val).toLocaleString();
+            const formatDateDisplay = (val) => { if(!val) return '--/--'; try { const d = new Date(val); return isNaN(d) ? '' : getDisplayDate(d); } catch { return ''; } };
+
+            // 🔥 V25 Logic: Auto-calculate next close date logic
+            const getAutoNextCloseDate = (closeDay) => {
+                const today = new Date();
+                let d = new Date(today.getFullYear(), today.getMonth(), closeDay);
+                // If today is past the close day, move to next month
+                if (today.getDate() > closeDay) {
+                    d.setMonth(d.getMonth() + 1);
+                }
+                return getFullDate(d);
+            };
+
             onMounted(() => {
                 const saved = localStorage.getItem(STORAGE_KEY);
-                if (saved) { try { wealthData.value = JSON.parse(saved); } catch(e) {} }
+                if (saved) { 
+                    try { 
+                        wealthData.value = JSON.parse(saved); 
+                        // Initialization check for V25 fields
+                        ['me', 'bf'].forEach(role => {
+                            if(wealthData.value[role].cards) {
+                                wealthData.value[role].cards.forEach(c => {
+                                    if(!c.nextCloseDate) {
+                                        c.nextCloseDate = getAutoNextCloseDate(c.closeDay);
+                                    }
+                                });
+                            }
+                        });
+                    } catch(e) {} 
+                }
             });
             watch(wealthData, (newVal) => {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(newVal));
@@ -311,72 +383,57 @@
                 currentRole.value = role;
                 recommendationMsg.value = '';
                 showDrillModal.value = false;
+                showTravelModal.value = false;
             };
 
-            const getFullDate = (d) => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
-            const formatMoney = (val) => Number(val).toLocaleString();
-            const formatDateDisplay = (val) => { if(!val) return '--/--'; try { const d = new Date(val); return isNaN(d) ? '' : getFullDate(d); } catch { return ''; } };
+            // 🔥 V25: Real-time update logic for cards
+            const updateCardDates = (card) => {
+                // When monthly day changes, reset the manual date to auto-calculated date
+                if(card.closeDay) {
+                    card.nextCloseDate = getAutoNextCloseDate(card.closeDay);
+                }
+            };
+            const forceUpdateCard = (card) => {
+                // User manually picked a date. We accept it.
+                // Optionally we could reverse-engineer the 'closeDay' but let's keep it decoupled for flexibility
+            };
+            const calculateDueDate = (card) => {
+                if(!card.nextCloseDate) return '--';
+                const d = new Date(card.nextCloseDate);
+                d.setDate(d.getDate() + (card.payGap || 15));
+                return getDisplayDate(d);
+            };
 
-            // 🔥 V23: 嚴格時間過濾邏輯
+
             const drillResult = computed(() => {
                 const target = new Date(drillDate.value);
-                const today = new Date();
-                today.setHours(0,0,0,0);
+                const today = new Date(); today.setHours(0,0,0,0);
                 
                 let results = { incomes: [], expenses: [], cards: [], finalBalance: totalLiquidAssets.value };
                 if(isNaN(target.getTime())) return results;
 
-                // 1. 收入 (只算 Today ~ Target 之間)
                 if(currentData.value.incomes) {
                     currentData.value.incomes.forEach(inc => {
                         let tempDate = new Date(today);
-                        for(let k=0; k<90; k++) {
-                            tempDate.setDate(tempDate.getDate() + 1);
-                            if (tempDate > target) break; 
-                            if (tempDate.getDate() === inc.day) {
-                                results.incomes.push({ name: inc.name, amount: inc.amount, dateStr: getFullDate(tempDate) });
-                                results.finalBalance += (Number(inc.amount)||0);
-                            }
-                        }
+                        for(let k=0; k<90; k++) { tempDate.setDate(tempDate.getDate() + 1); if (tempDate > target) break; if (tempDate.getDate() === inc.day) { results.incomes.push({ name: inc.name, amount: inc.amount, dateStr: getFullDate(tempDate) }); results.finalBalance += (Number(inc.amount)||0); } }
                     });
                 }
                 
-                // 2. 支出 (只算 Today ~ Target 之間)
                 if(currentData.value.expenses) {
                     currentData.value.expenses.forEach(exp => {
                          let tempDate = new Date(today);
-                         for(let k=0; k<90; k++) {
-                            tempDate.setDate(tempDate.getDate() + 1);
-                            if (tempDate > target) break;
-                            if (tempDate.getDate() === exp.day) {
-                                results.expenses.push({ name: exp.name, amount: exp.amount, dateStr: getFullDate(tempDate) });
-                                results.finalBalance -= (Number(exp.amount)||0);
-                            }
-                        }
+                         for(let k=0; k<90; k++) { tempDate.setDate(tempDate.getDate() + 1); if (tempDate > target) break; if (tempDate.getDate() === exp.day) { results.expenses.push({ name: exp.name, amount: exp.amount, dateStr: getFullDate(tempDate) }); results.finalBalance -= (Number(exp.amount)||0); } }
                     });
                 }
-
-                // 3. 卡費 (修正邏輯：必須在今天以後，且在預演日之前)
+                
+                // 🔥 V25 Logic: Use card.nextCloseDate explicitly
                 if(currentData.value.cards) {
                     currentData.value.cards.forEach(card => {
-                        if(card.currentDebt > 0) {
-                            let nextClose = new Date(today.getFullYear(), today.getMonth(), card.closeDay);
-                            if(today.getDate() > card.closeDay) nextClose.setMonth(nextClose.getMonth() + 1);
-                            
-                            // 這裡我們只找「最近一次」的繳款日
-                            let baseCloseDate;
-                            if (today.getDate() > card.closeDay) {
-                                baseCloseDate = new Date(today.getFullYear(), today.getMonth(), card.closeDay);
-                            } else {
-                                baseCloseDate = new Date(today.getFullYear(), today.getMonth(), card.closeDay);
-                            }
-                            
-                            let dueDate = new Date(baseCloseDate);
+                        if(card.currentDebt > 0 && card.nextCloseDate) {
+                            let dueDate = new Date(card.nextCloseDate);
                             dueDate.setDate(dueDate.getDate() + (card.payGap||15));
                             
-                            // 🔥 關鍵過濾：
-                            // 1. dueDate 必須 >= today (不能是過去已過期的)
-                            // 2. dueDate 必須 <= target (必須在預演日前到期，才要算)
+                            // Check if this specific due date is within the drill window
                             if(dueDate >= today && dueDate <= target) {
                                  results.cards.push({ name: card.name, amount: card.currentDebt, dueDate: getFullDate(dueDate) });
                                  results.finalBalance -= (Number(card.currentDebt)||0);
@@ -384,64 +441,99 @@
                         }
                     });
                 }
-
                 return results;
             });
 
-            // Spending Strategy Logic (unchanged same as V22)
-            const analyzeCashFlow = (dueDate) => {
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                let result = { totalAmount: 0, validIncomes: [], missedIncomes: [], validExpenses: [] };
-                if (currentData.value.incomes) {
+             // Shared Logic for Travel & Dashboard
+            const getCardPaymentDate = (card, fromDate) => {
+                // Determine next close date relative to fromDate
+                // In V25, we use the user-defined `nextCloseDate` IF it's in the future relative to now.
+                // But for pure simulation (e.g. Travel next year), we need to compute cycles.
+                
+                // For "Already Spent" (currentDebt), we use textCloseDate.
+                // For "Potential Spend" (Dashboard/Travel), we calculate based on CloseDay.
+                
+                let stmtDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), card.closeDay);
+                if (fromDate.getDate() > card.closeDay) stmtDate.setMonth(stmtDate.getMonth() + 1);
+                let dueDate = new Date(stmtDate);
+                dueDate.setDate(dueDate.getDate() + (card.payGap || 15));
+                return dueDate;
+            };
+
+            const travelTotal = computed(() => travelItems.value.reduce((sum, item) => sum + (Number(item.amount)||0), 0));
+            const travelBudgetAnalysis = computed(() => {
+                const start = new Date(travelStartDate.value);
+                const end = new Date(travelEndDate.value);
+                const today = new Date(); today.setHours(0,0,0,0);
+                let res = { income: 0, fixedExpense: 0, cardPayment: 0, available: totalLiquidAssets.value };
+
+                if(currentData.value.incomes) {
                     currentData.value.incomes.forEach(inc => {
                         let tempDate = new Date(today);
-                        for(let k=0; k<60; k++) {
-                            tempDate.setDate(tempDate.getDate() + 1);
-                            if (tempDate > dueDate) {
-                                if( (tempDate - dueDate) / 86400000 <= 3 && tempDate.getDate() === inc.day) {
-                                    result.missedIncomes.push({ name: inc.name, amount: inc.amount, dateStr: getFullDate(tempDate) });
-                                }
-                                break; 
-                            }
-                            if (tempDate.getDate() === inc.day) {
-                                result.totalAmount += (Number(inc.amount)||0);
-                                result.validIncomes.push({ name: inc.name, amount: inc.amount, dateStr: getFullDate(tempDate) });
-                            }
-                        }
+                        for(let k=0; k<90; k++) { tempDate.setDate(tempDate.getDate() + 1); if(tempDate > end) break; if(tempDate.getDate() === inc.day) res.income += (Number(inc.amount)||0); }
                     });
                 }
-                if (currentData.value.expenses) {
-                     currentData.value.expenses.forEach(exp => {
+                if(currentData.value.expenses) {
+                    currentData.value.expenses.forEach(exp => {
                         let tempDate = new Date(today);
-                        for(let k=0; k<60; k++) {
-                            tempDate.setDate(tempDate.getDate() + 1);
-                            if (tempDate > dueDate) break;
-                            if (tempDate.getDate() === exp.day) {
-                                result.totalAmount -= (Number(exp.amount)||0);
-                                result.validExpenses.push({ name: exp.name, amount: exp.amount, dateStr: getFullDate(tempDate) });
-                            }
+                        for(let k=0; k<90; k++) { tempDate.setDate(tempDate.getDate() + 1); if(tempDate > end) break; if(tempDate.getDate() === exp.day) res.fixedExpense += (Number(exp.amount)||0); }
+                    });
+                }
+                // V25: Use Manual Next Close Date for existing debt
+                if(currentData.value.cards) {
+                    currentData.value.cards.forEach(card => {
+                        if(card.currentDebt > 0 && card.nextCloseDate) {
+                             let dueDate = new Date(card.nextCloseDate);
+                             dueDate.setDate(dueDate.getDate() + (card.payGap||15));
+                             if(dueDate >= today && dueDate <= end) res.cardPayment += (Number(card.currentDebt)||0);
                         }
                     });
                 }
-                return result;
-            };
+                res.available = res.available + res.income - res.fixedExpense - res.cardPayment;
+                return res;
+            });
+            const travelCardRecommendation = computed(() => {
+                if (travelTotal.value <= 0) return null;
+                const spendDate = new Date(travelStartDate.value);
+                let bestCard = null; let maxDays = -1;
+                (currentData.value.cards || []).filter(c => !c.type || c.type === 'main').forEach(card => {
+                    let dueDate = getCardPaymentDate(card, spendDate);
+                    const daysDiff = Math.ceil((dueDate - spendDate)/(86400000));
+                    if(daysDiff > maxDays) { maxDays = daysDiff; bestCard = { cardName: card.name, dueDate: dueDate, daysDiff: daysDiff }; }
+                });
+                return bestCard;
+            });
+
 
             const rankedCards = computed(() => {
                 const spendDate = new Date(spendingDate.value);
                 const amount = Number(spendingAmount.value) || 0;
                 if (isNaN(spendDate.getTime())) return [];
                 return (currentData.value.cards || []).filter(card => !card.type || card.type === 'main').map(card => {
-                        let stmtDate = new Date(spendDate.getFullYear(), spendDate.getMonth(), card.closeDay);
-                        if (spendDate.getDate() > card.closeDay) stmtDate.setMonth(stmtDate.getMonth() + 1);
-                        let dueDate = new Date(stmtDate);
-                        dueDate.setDate(dueDate.getDate() + (card.payGap || 15));
-                        const cashFlow = analyzeCashFlow(dueDate);
-                        const finalAccountBalance = totalLiquidAssets.value + cashFlow.totalAmount - totalDebt.value - amount;
+                        let dueDate = getCardPaymentDate(card, spendDate);
+                        // Analyze Cash Flow until that due date
+                        let today = new Date(); today.setHours(0,0,0,0);
+                        let cf = { totalAmount: 0, validIncomes: [], missedIncomes: [], validExpenses: [] };
+                        
+                        // Recalculated Cash Flow Logic
+                        if (currentData.value.incomes) {
+                            currentData.value.incomes.forEach(inc => {
+                                let tempDate = new Date(today);
+                                for(let k=0; k<60; k++) { tempDate.setDate(tempDate.getDate() + 1); if (tempDate > dueDate) break; if (tempDate.getDate() === inc.day) { cf.totalAmount += (Number(inc.amount)||0); cf.validIncomes.push({ name: inc.name, amount: inc.amount, dateStr: getDisplayDate(tempDate) }); } }
+                            });
+                        }
+                        if (currentData.value.expenses) {
+                             currentData.value.expenses.forEach(exp => {
+                                let tempDate = new Date(today);
+                                for(let k=0; k<60; k++) { tempDate.setDate(tempDate.getDate() + 1); if (tempDate > dueDate) break; if (tempDate.getDate() === exp.day) { cf.totalAmount -= (Number(exp.amount)||0); cf.validExpenses.push({ name: exp.name, amount: exp.amount, dateStr: getDisplayDate(tempDate) }); } }
+                            });
+                        }
+                        
+                        const finalAccountBalance = totalLiquidAssets.value + cf.totalAmount - totalDebt.value - amount;
                         const remainingLimit = (card.limit || 0) - (card.currentDebt || 0);
                         const isOverLimit = (card.limit > 0) && (amount > remainingLimit);
                         const daysDiff = Math.ceil((dueDate - spendDate)/(86400000));
-                        return {cardName: card.name, currentDebt: card.currentDebt||0, limit: card.limit || 0, remainingLimit, isOverLimit, dueDate, daysDiff, validIncomes: cashFlow.validIncomes, missedIncomes: cashFlow.missedIncomes, validExpenses: cashFlow.validExpenses, finalAccountBalance};
+                        return {cardName: card.name, currentDebt: card.currentDebt||0, limit: card.limit || 0, remainingLimit, isOverLimit, dueDate, daysDiff, validIncomes: cf.validIncomes, missedIncomes: cf.missedIncomes, validExpenses: cf.validExpenses, finalAccountBalance};
                     }).sort((a,b) => {
                         if (a.isOverLimit && !b.isOverLimit) return 1; if (!a.isOverLimit && b.isOverLimit) return -1;
                         if (a.finalAccountBalance >= 0 && b.finalAccountBalance < 0) return -1; if (a.finalAccountBalance < 0 && b.finalAccountBalance >= 0) return 1; return b.daysDiff - a.daysDiff;
@@ -451,28 +543,30 @@
             const autoRecommendDate = () => {
                 const today = new Date(); today.setHours(0,0,0,0); let bestOption = null; let maxDays = -1;
                 (currentData.value.cards || []).filter(c => !c.type || c.type==='main').forEach(card => {
-                    let targetDate = new Date(today.getFullYear(), today.getMonth(), card.closeDay + 1);
-                    if (targetDate < today) targetDate.setMonth(targetDate.getMonth() + 1);
-                    let stmtDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), card.closeDay);
-                    if (targetDate.getDate() > card.closeDay) stmtDate.setMonth(stmtDate.getMonth() + 1);
-                    let dueDate = new Date(stmtDate); dueDate.setDate(dueDate.getDate() + (card.payGap || 15));
-                    const daysDiff = Math.ceil((dueDate - targetDate)/(86400000));
-                    if (daysDiff > maxDays) { maxDays = daysDiff; bestOption = { date: targetDate, cardName: card.name, days: daysDiff }; }
+                    let dueDate = getCardPaymentDate(card, today);
+                    const daysDiff = Math.ceil((dueDate - today)/(86400000));
+                    if (daysDiff > maxDays) { maxDays = daysDiff; bestOption = { date: dueDate, cardName: card.name, days: daysDiff }; }
                 });
                 if (bestOption) {
                     const y = bestOption.date.getFullYear(); const m = String(bestOption.date.getMonth() + 1).padStart(2, '0'); const d = String(bestOption.date.getDate()).padStart(2, '0');
-                    spendingDate.value = `${y}-${m}-${d}`; recommendationMsg.value = `建議 ${m}/${d} 刷「${bestOption.cardName}」，獲得 ${bestOption.days} 天緩衝！`;
+                    spendingDate.value = `${y}-${m}-${d}`; recommendationMsg.value = `建議 ${m}/${d} 刷「${bestOption.cardName}」，獲得 ${bestOption.days} 天緩衝！`; // Note: Logic simplified for demo
                 } else recommendationMsg.value = `無適合卡片`;
             };
 
             const addAsset = () => { if(!currentData.value.assets) currentData.value.assets=[]; currentData.value.assets.push({name:'', amount:0}); };
             const addIncome = () => { if(!currentData.value.incomes) currentData.value.incomes=[]; currentData.value.incomes.push({name:'', amount:0, day:5}); };
             const addExpense = () => { if(!currentData.value.expenses) currentData.value.expenses=[]; currentData.value.expenses.push({name:'', amount:0, day:1}); };
-            const addCard = () => { if(!currentData.value.cards) currentData.value.cards=[]; currentData.value.cards.push({name:'', type:'main', closeDay:1, payGap:15, currentDebt:0, limit:0}); };
+            const addCard = () => { 
+                if(!currentData.value.cards) currentData.value.cards=[]; 
+                currentData.value.cards.push({name:'', type:'main', closeDay:1, payGap:15, currentDebt:0, limit:0, nextCloseDate: getAutoNextCloseDate(1)}); 
+            };
             const saveAndClose = () => { showSettings.value = false; };
 
             return {
-                showSettings, showDrillModal, drillDate, drillResult, spendingDate, spendingAmount, recommendationMsg, currentRole, currentData, currentRealLiquidity, totalDebt, totalLiquidAssets, debtRatio, rankedCards, isSaving, switchRole, autoRecommendDate, addAsset, addIncome, addExpense, addCard, saveAndClose, formatDateDisplay, formatMoney
+                showSettings, showDrillModal, showTravelModal,
+                travelStartDate, travelEndDate, travelItems, travelTotal, travelBudgetAnalysis, travelCardRecommendation,
+                drillDate, drillResult, spendingDate, spendingAmount, recommendationMsg, currentRole, currentData, currentRealLiquidity, totalDebt, totalLiquidAssets, debtRatio, rankedCards, isSaving, switchRole, autoRecommendDate, addAsset, addIncome, addExpense, addCard, saveAndClose, formatDateDisplay, formatMoney,
+                updateCardDates, forceUpdateCard, calculateDueDate // V25
             };
         }
     }).mount('#app');
