@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>資金流向戰略 (V19 Mobile Fix)</title>
+    <title>資金流向戰略 (V20 指揮版)</title>
     
     <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -24,21 +24,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
     
     <style>
-        /* 🔥 V19 核心修改：預設允許滾動，只有在大螢幕 (lg) 才鎖定 */
         body { 
             font-family: 'Noto Sans TC', sans-serif; 
             background-color: #F8FAFC; 
             transition: background-color 0.5s;
-            /* Mobile Default: Allow Scroll */
             min-height: 100dvh; 
             overflow-y: auto; 
         }
-        /* Desktop: Dashboard Layout */
         @media (min-width: 1024px) {
-            body { 
-                height: 100vh; 
-                overflow: hidden; 
-            }
+            body { height: 100vh; overflow: hidden; }
         }
 
         .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -47,7 +41,6 @@
         .animate-fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Scrollbars */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
@@ -71,6 +64,11 @@
         
         .save-indicator { position: fixed; bottom: 20px; right: 20px; background: #22c55e; color: white; padding: 8px 16px; border-radius: 99px; font-weight: bold; font-size: 12px; transform: translateY(100px); transition: transform 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 100; display: flex; items-center; gap: 6px; }
         .save-indicator.show { transform: translateY(0); }
+
+        /* Drill Modal Styles */
+        .drill-section { border-left: 2px solid #e2e8f0; padding-left: 1rem; margin-left: 0.5rem; position: relative; padding-bottom: 1.5rem; }
+        .drill-section:last-child { border-left: none; }
+        .drill-dot { position: absolute; left: -0.55rem; top: 0; width: 1rem; height: 1rem; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 2; }
     </style>
 </head>
 <body class="text-slate-600 flex flex-col transition-colors duration-500" :class="currentRole === 'me' ? 'bg-indigo-50/50' : 'bg-slate-200'">
@@ -79,7 +77,7 @@
     <div class="save-indicator" :class="{ show: isSaving }"><i class="ph-bold ph-check"></i> 資料已自動儲存</div>
 
     <!-- Header -->
-    <header class="pt-4 px-6 flex justify-center items-center gap-6 shrink-0 z-30">
+    <header class="pt-4 px-6 flex flex-wrap justify-center items-center gap-4 shrink-0 z-30">
         <button @click="switchRole('me')" class="role-btn flex items-center gap-3 bg-indigo-600 text-white rounded-full pl-2 pr-6 py-2 shadow-xl" :class="{ active: currentRole === 'me' }">
             <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl shadow-inner">👩</div>
             <div class="text-left"><div class="text-[10px] uppercase font-bold text-indigo-200 leading-none mb-0.5">MY ACCOUNT</div><div class="font-black text-sm">我的資產</div></div>
@@ -88,12 +86,14 @@
             <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl shadow-inner">🧑</div>
             <div class="text-left"><div class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">BF ACCOUNT</div><div class="font-black text-sm">黑豬皮蛋資產</div></div>
         </button>
+
+        <!-- 🔥 V20 新增：資金預演按鈕 -->
+        <button @click="showDrillModal = true" class="bg-white text-indigo-600 px-4 py-2 rounded-full shadow-lg font-bold text-xs flex items-center gap-2 border border-indigo-100 hover:bg-indigo-50 transition ml-2">
+            <i class="ph-fill ph-crystal-ball text-lg"></i> 資金預演
+        </button>
     </header>
 
-    <!-- Main Content: Mobile = Stacks, Desktop = Side-by-side -->
-    <!-- Removed 'h-full overflow-hidden' for mobile, added 'lg:' prefix -->
     <div class="flex-1 flex flex-col lg:flex-row p-4 lg:p-6 gap-4 lg:overflow-hidden">
-        
         <!-- 左側：現實面 -->
         <section class="text-white pt-6 pb-8 px-6 rounded-[2rem] shadow-2xl relative shrink-0 lg:w-[22rem] flex flex-col transition-colors duration-500 lg:h-full lg:overflow-hidden"
                  :class="currentRole === 'me' ? 'theme-me-bg' : 'theme-bf-bg'">
@@ -104,7 +104,6 @@
                 <button @click="showSettings = true" class="bg-white/10 p-2 rounded-full hover:bg-white/20 transition backdrop-blur-sm border border-white/10"><i class="ph-bold ph-gear text-lg"></i></button>
             </div>
 
-            <!-- On mobile, this expands. On desktop, it scrolls inside. -->
             <div class="relative z-10 flex-1 lg:overflow-y-auto pr-1 custom-scrollbar">
                 <div class="mb-6">
                      <div class="text-white/60 text-[10px] font-bold uppercase mb-1 flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> 目前實際資金 (資產 - 負債)</div>
@@ -145,7 +144,7 @@
             </div>
         </section>
 
-        <!-- Right: Mobile Stacks Below, Desktop Side-by-side -->
+        <!-- 右側：操作面板 -->
         <main class="flex-1 flex flex-col lg:h-full lg:overflow-hidden relative">
             <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-200 mb-4 shrink-0 overflow-visible z-20">
                 <div class="grid grid-cols-12 gap-3 lg:gap-4">
@@ -179,95 +178,124 @@
                 </div>
             </div>
 
-            <!-- Card List: Mobile scrolls body, Desktop scrolls here -->
             <div class="flex-1 lg:overflow-y-auto pb-24 lg:pb-0 pr-0 lg:pr-2 space-y-4 animate-fade-in lg:custom-scrollbar">
                 <div v-if="rankedCards.length > 0" class="space-y-4">
-                    <!-- 🏆 冠軍卡片 -->
+                    <!-- 卡片列表區... 保持原樣 -->
                     <div class="relative group mt-2 mx-1">
                         <div class="absolute -top-3 left-4 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg z-20 border-2 border-white flex items-center gap-1" :class="currentRole === 'me' ? 'bg-indigo-500' : 'bg-slate-700'"><i class="ph-fill ph-crown"></i> 首選主力卡</div>
                         <div class="bg-white rounded-[1.5rem] p-5 shadow-lg border relative overflow-hidden transition-all duration-300" :class="[rankedCards[0].isOverLimit ? 'border-red-200 bg-red-50/50' : (currentRole==='me'?'border-indigo-200 hover:border-indigo-400':'border-slate-300 hover:border-slate-500')]">
                             <div class="flex justify-between items-start mb-4 relative z-10">
-                                <div>
-                                    <h3 class="text-2xl font-black text-slate-800 leading-tight">{{ rankedCards[0].cardName }}</h3>
-                                    <div class="flex items-center gap-2 mt-1"><span class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-mono">剩餘額度 ${{ formatMoney(rankedCards[0].remainingLimit) }}</span></div>
-                                </div>
-                                <div class="text-center bg-emerald-50 text-emerald-600 px-3 py-2 rounded-xl border border-emerald-100 min-w-[70px]">
-                                    <div class="text-3xl font-mono font-black leading-none">{{ rankedCards[0].daysDiff }}</div><div class="text-[9px] font-bold uppercase mt-1">天後付款</div>
-                                </div>
+                                <div><h3 class="text-2xl font-black text-slate-800 leading-tight">{{ rankedCards[0].cardName }}</h3><div class="flex items-center gap-2 mt-1"><span class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-mono">剩餘額度 ${{ formatMoney(rankedCards[0].remainingLimit) }}</span></div></div>
+                                <div class="text-center bg-emerald-50 text-emerald-600 px-3 py-2 rounded-xl border border-emerald-100 min-w-[70px]"><div class="text-3xl font-mono font-black leading-none">{{ rankedCards[0].daysDiff }}</div><div class="text-[9px] font-bold uppercase mt-1">天後付款</div></div>
                             </div>
-
                             <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-4 relative overflow-hidden">
                                 <div class="flex flex-col gap-3 relative z-10">
                                     <div class="flex justify-between text-[11px] font-bold text-slate-400 uppercase"><span>消費日</span><span>實際繳款日</span></div>
-                                    <div class="flex items-center justify-between font-mono font-bold text-slate-700 -mt-1">
-                                        <span>{{ formatDateDisplay(spendingDate) }}</span><div class="h-0.5 flex-1 bg-slate-200 mx-3 relative"><div class="absolute right-0 -top-1 w-2 h-2 rounded-full bg-slate-300"></div></div><span class="text-lg text-indigo-900 border-b-2 border-indigo-200">{{ formatDateDisplay(rankedCards[0].dueDate) }}</span>
-                                    </div>
-
+                                    <div class="flex items-center justify-between font-mono font-bold text-slate-700 -mt-1"><span>{{ formatDateDisplay(spendingDate) }}</span><div class="h-0.5 flex-1 bg-slate-200 mx-3 relative"><div class="absolute right-0 -top-1 w-2 h-2 rounded-full bg-slate-300"></div></div><span class="text-lg text-indigo-900 border-b-2 border-indigo-200">{{ formatDateDisplay(rankedCards[0].dueDate) }}</span></div>
                                     <div class="bg-white rounded-xl p-3 border border-slate-100 shadow-sm mt-1">
-                                        <div class="text-[10px] uppercase font-bold text-slate-400 mb-2 border-b border-slate-100 pb-1">資金預估明細 (繳款當日)</div>
-                                        <div class="flex justify-between items-center text-xs mb-1">
-                                            <span class="flex items-center gap-1 font-bold text-slate-500"><i class="ph-bold ph-wallet"></i> 現有存款</span>
-                                            <span class="font-mono font-bold text-slate-600">${{ formatMoney(totalLiquidAssets) }}</span>
-                                        </div>
-                                        
-                                        <!-- V18 透明條列 -->
-                                        <div v-if="rankedCards[0].validIncomes.length > 0" class="space-y-1 my-2">
-                                            <div v-for="inc in rankedCards[0].validIncomes" class="flex justify-between items-center text-xs">
-                                                <span class="flex items-center gap-1 font-bold text-emerald-600"><i class="ph-fill ph-check-circle"></i> {{ inc.dateStr }} 入帳</span>
-                                                <span class="font-mono font-bold text-emerald-600">+${{ formatMoney(inc.amount) }}</span>
-                                            </div>
-                                        </div>
+                                        <div class="text-[10px] uppercase font-bold text-slate-400 mb-2 border-b border-slate-100 pb-1">繳款日 資金預估明細</div>
+                                        <div class="flex justify-between items-center text-xs mb-1"><span class="flex items-center gap-1 font-bold text-slate-500"><i class="ph-bold ph-wallet"></i> 現有存款</span><span class="font-mono font-bold text-slate-600">${{ formatMoney(totalLiquidAssets) }}</span></div>
+                                        <div v-if="rankedCards[0].validIncomes.length > 0" class="space-y-1 my-2"><div v-for="inc in rankedCards[0].validIncomes" class="flex justify-between items-center text-xs"><span class="flex items-center gap-1 font-bold text-emerald-600"><i class="ph-fill ph-check-circle"></i> {{ inc.dateStr }} 入帳</span><span class="font-mono font-bold text-emerald-600">+${{ formatMoney(inc.amount) }}</span></div></div>
                                         <div v-else class="text-xs text-slate-400 italic my-2">⚠ 期間無薪水入帳</div>
-
-                                        <div v-if="rankedCards[0].validExpenses.length > 0" class="space-y-1 my-2 border-t border-dashed border-slate-200 pt-2">
-                                            <div v-for="exp in rankedCards[0].validExpenses" class="flex justify-between items-center text-xs">
-                                                <span class="flex items-center gap-1 font-bold text-orange-400"><i class="ph-fill ph-house-line"></i> {{ exp.dateStr }} 扣款</span>
-                                                <span class="font-mono font-bold text-orange-400">-${{ formatMoney(exp.amount) }}</span>
-                                            </div>
-                                        </div>
-
-                                        <div class="border-t border-slate-100 pt-2 space-y-1 mt-1">
-                                             <div class="flex justify-between items-center text-xs text-red-500">
-                                                <span class="flex items-center gap-1 font-bold"><i class="ph-fill ph-minus-circle"></i> 需償還現有負債</span>
-                                                <span class="font-mono font-bold">-${{ formatMoney(totalDebt) }}</span>
-                                            </div>
-                                            <div v-if="spendingAmount>0" class="flex justify-between items-center text-xs text-red-500">
-                                                <span class="flex items-center gap-1 font-bold"><i class="ph-fill ph-minus-circle"></i> 本次計畫消費</span>
-                                                <span class="font-mono font-bold">-${{ formatMoney(spendingAmount) }}</span>
-                                            </div>
-                                        </div>
+                                        <div v-if="rankedCards[0].validExpenses.length > 0" class="space-y-1 my-2 border-t border-dashed border-slate-200 pt-2"><div v-for="exp in rankedCards[0].validExpenses" class="flex justify-between items-center text-xs"><span class="flex items-center gap-1 font-bold text-orange-400"><i class="ph-fill ph-house-line"></i> {{ exp.dateStr }} 扣款</span><span class="font-mono font-bold text-orange-400">-${{ formatMoney(exp.amount) }}</span></div></div>
+                                        <div class="border-t border-slate-100 pt-2 space-y-1 mt-1"><div class="flex justify-between items-center text-xs text-red-500"><span class="flex items-center gap-1 font-bold"><i class="ph-fill ph-minus-circle"></i> 需償還現有負債</span><span class="font-mono font-bold">-${{ formatMoney(totalDebt) }}</span></div><div v-if="spendingAmount>0" class="flex justify-between items-center text-xs text-red-500"><span class="flex items-center gap-1 font-bold"><i class="ph-fill ph-minus-circle"></i> 本次計畫消費</span><span class="font-mono font-bold">-${{ formatMoney(spendingAmount) }}</span></div></div>
                                     </div>
-
-                                    <div class="flex justify-between items-end pt-1">
-                                        <span class="text-xs font-bold text-slate-600 pb-1">繳款後餘額</span>
-                                        <div class="text-2xl font-mono font-black leading-none" :class="rankedCards[0].finalAccountBalance < 0 ? 'text-red-500' : 'text-indigo-600'">${{ formatMoney(rankedCards[0].finalAccountBalance) }}</div>
-                                    </div>
+                                    <div class="flex justify-between items-end pt-1"><span class="text-xs font-bold text-slate-600 pb-1">繳款後餘額</span><div class="text-2xl font-mono font-black leading-none" :class="rankedCards[0].finalAccountBalance < 0 ? 'text-red-500' : 'text-indigo-600'">${{ formatMoney(rankedCards[0].finalAccountBalance) }}</div></div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <!-- 其他卡片 -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-1">
-                        <div v-for="(card, idx) in rankedCards.slice(1)" :key="idx" class="p-4 rounded-xl border bg-white flex flex-col justify-between transition relative overflow-hidden hover:shadow-md" :class="card.isOverLimit ? 'border-red-200 opacity-60' : 'border-slate-100'">
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="font-bold text-slate-700 text-lg">{{ card.cardName }}</div><span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ formatDateDisplay(card.dueDate) }} 繳款</span>
-                            </div>
-                            <div class="flex justify-between items-end">
-                                <div class="text-[10px] text-slate-400 font-mono"><div v-if="card.finalAccountBalance >= 0" class="text-emerald-500 font-bold">餘額夠付 ✅</div><div v-else class="text-red-400 font-bold">餘額不足 ❌</div></div>
-                                <div class="font-bold text-sm" :class="currentRole==='me'?'text-indigo-500':'text-sky-600'">+{{ card.daysDiff }} 天</div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-1"><div v-for="(card, idx) in rankedCards.slice(1)" :key="idx" class="p-4 rounded-xl border bg-white flex flex-col justify-between transition relative overflow-hidden hover:shadow-md" :class="card.isOverLimit ? 'border-red-200 opacity-60' : 'border-slate-100'"><div class="flex justify-between items-start mb-2"><div class="font-bold text-slate-700 text-lg">{{ card.cardName }}</div><span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ formatDateDisplay(card.dueDate) }} 繳款</span></div><div class="flex justify-between items-end"><div class="text-[10px] text-slate-400 font-mono"><div v-if="card.finalAccountBalance >= 0" class="text-emerald-500 font-bold">餘額夠付 ✅</div><div v-else class="text-red-400 font-bold">餘額不足 ❌</div></div><div class="font-bold text-sm" :class="currentRole==='me'?'text-indigo-500':'text-sky-600'">+{{ card.daysDiff }} 天</div></div></div></div>
                 </div>
                 <div v-else class="text-center py-24 text-slate-400"><p class="font-bold">尚無可用「主力卡」</p><p class="text-xs mt-1">請至設定確認卡片類型</p></div>
             </div>
         </main>
     </div>
 
-    <!-- 設定 Modal -->
+    <!-- 🔥 V20 資金預演 Modal -->
+    <div v-if="showDrillModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" @click.self="showDrillModal = false">
+        <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="bg-indigo-600 p-5 shrink-0">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-white font-bold text-xl flex items-center gap-2"><i class="ph-fill ph-strategy"></i> 資金戰略預演</h3>
+                    <button @click="showDrillModal=false" class="text-white/70 hover:text-white"><i class="ph-bold ph-x text-xl"></i></button>
+                </div>
+                <div class="bg-indigo-500/50 rounded-xl p-3 flex items-center gap-3 border border-indigo-400/50">
+                    <div class="text-indigo-200 text-xs font-bold uppercase shrink-0">預演基準日</div>
+                    <input type="date" v-model="drillDate" class="bg-white/10 text-white font-mono font-bold rounded px-2 py-1 flex-1 outline-none border border-transparent focus:border-white/30 text-center">
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-5 custom-scrollbar bg-slate-50">
+                <!-- 預演結果 -->
+                <div class="space-y-4">
+                    
+                    <!-- 1. 收入 -->
+                    <div class="drill-section">
+                        <div class="drill-dot bg-emerald-500"></div>
+                        <h4 class="text-xs font-bold text-slate-500 uppercase mb-2">步驟一：收入進帳</h4>
+                        <div v-if="drillResult.incomes.length > 0" class="space-y-2">
+                            <div v-for="inc in drillResult.incomes" class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                                <span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-arrow-down-left text-emerald-500"></i> {{ inc.dateStr }} {{ inc.name }}</span>
+                                <span class="font-mono font-bold text-emerald-600">+${{ formatMoney(inc.amount) }}</span>
+                            </div>
+                        </div>
+                        <div v-else class="text-xs text-slate-400 italic pl-2">至此日尚無預期收入</div>
+                    </div>
+
+                    <!-- 2. 固定支出 -->
+                    <div class="drill-section">
+                        <div class="drill-dot bg-orange-400"></div>
+                        <h4 class="text-xs font-bold text-slate-500 uppercase mb-2">步驟二：支付房租/固定支出</h4>
+                        <div v-if="drillResult.expenses.length > 0" class="space-y-2">
+                             <div v-for="exp in drillResult.expenses" class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                                <span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-arrow-up-right text-orange-500"></i> {{ exp.dateStr }} {{ exp.name }}</span>
+                                <span class="font-mono font-bold text-orange-500">-${{ formatMoney(exp.amount) }}</span>
+                            </div>
+                        </div>
+                        <div v-else class="text-xs text-slate-400 italic pl-2">至此日無固定扣款</div>
+                    </div>
+
+                    <!-- 3. 卡費 -->
+                    <div class="drill-section">
+                        <div class="drill-dot bg-red-500"></div>
+                        <h4 class="text-xs font-bold text-slate-500 uppercase mb-2">步驟三：結清到期卡費</h4>
+                        <div v-if="drillResult.cards.length > 0" class="space-y-2">
+                             <div v-for="card in drillResult.cards" class="bg-white p-3 rounded-lg border border-red-100 shadow-sm flex justify-between items-center">
+                                <div>
+                                    <span class="text-sm font-bold text-slate-700 flex items-center gap-2"><i class="ph-fill ph-credit-card text-red-500"></i> {{ card.name }}</span>
+                                    <div class="text-[10px] text-red-400 pl-6">應於 {{ card.dueDate }} 前繳款</div>
+                                </div>
+                                <span class="font-mono font-bold text-red-500">-${{ formatMoney(card.amount) }}</span>
+                            </div>
+                        </div>
+                        <div v-else class="text-xs text-slate-400 italic pl-2">無緊迫卡費需結清</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- 底部結算 -->
+            <div class="p-5 bg-white border-t border-slate-100 shrink-0">
+                <div class="flex justify-between items-end">
+                    <div class="text-xs font-bold text-slate-400">預演結餘</div>
+                    <div class="text-3xl font-mono font-black" :class="drillResult.finalBalance < 0 ? 'text-red-500' : 'text-indigo-600'">
+                        ${{ formatMoney(drillResult.finalBalance) }}
+                    </div>
+                </div>
+                <div v-if="drillResult.finalBalance < 0" class="text-center mt-2 bg-red-50 text-red-500 text-xs font-bold py-1 rounded">
+                    ⚠️ 資金不足！請調整支出或調度資金
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Settings Modal (Same as before) -->
     <div v-if="showSettings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click.self="showSettings = false">
         <div class="bg-white w-full max-w-lg h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-fade-in overflow-hidden">
-            <div class="p-5 border-b border-slate-100 flex justify-between items-center shrink-0" :class="currentRole === 'me' ? 'bg-indigo-50' : 'bg-slate-50'">
+            <!-- ... Settings content same as V19 ... -->
+             <div class="p-5 border-b border-slate-100 flex justify-between items-center shrink-0" :class="currentRole === 'me' ? 'bg-indigo-50' : 'bg-slate-50'">
                 <div class="flex items-center gap-3"><span class="text-3xl p-2 bg-white rounded-full shadow-sm">{{ currentRole === 'me' ? '👩' : '🧑' }}</span><div><div class="text-[10px] uppercase font-bold opacity-50 tracking-widest">{{ currentRole === 'me' ? 'My Settings' : 'BF Settings' }}</div><h3 class="font-bold text-xl text-slate-800">資產配置與卡片管理</h3></div></div><button @click="saveAndClose" class="bg-slate-900 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow hover:bg-slate-700 transition flex items-center gap-2"><i class="ph-bold ph-floppy-disk"></i> 儲存</button>
             </div>
             <div class="flex-1 overflow-y-auto p-5 space-y-8 bg-white custom-scrollbar">
@@ -300,6 +328,9 @@
     createApp({
         setup() {
             const showSettings = ref(false);
+            const showDrillModal = ref(false);
+            const drillDate = ref(new Date().toISOString().split('T')[0]);
+            
             const spendingDate = ref(new Date().toISOString().split('T')[0]);
             const spendingAmount = ref(null);
             const recommendationMsg = ref('');
@@ -348,8 +379,81 @@
             const switchRole = (role) => {
                 currentRole.value = role;
                 recommendationMsg.value = '';
+                showDrillModal.value = false;
             };
 
+            // 🔥 V20 資金預演計算
+            const drillResult = computed(() => {
+                const target = new Date(drillDate.value);
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                
+                let results = {
+                    incomes: [],
+                    expenses: [],
+                    cards: [],
+                    finalBalance: totalLiquidAssets.value // 起始：現有存款
+                };
+
+                if(isNaN(target.getTime())) return results;
+
+                // 1. 收入
+                if(currentData.value.incomes) {
+                    currentData.value.incomes.forEach(inc => {
+                        let tempDate = new Date(today);
+                        for(let k=0; k<90; k++) {
+                            tempDate.setDate(tempDate.getDate() + 1);
+                            if (tempDate > target) break; 
+                            if (tempDate.getDate() === inc.day) {
+                                results.incomes.push({ name: inc.name, amount: inc.amount, dateStr: `${tempDate.getMonth()+1}/${tempDate.getDate()}` });
+                                results.finalBalance += (Number(inc.amount)||0);
+                            }
+                        }
+                    });
+                }
+
+                // 2. 支出
+                if(currentData.value.expenses) {
+                    currentData.value.expenses.forEach(exp => {
+                         let tempDate = new Date(today);
+                         for(let k=0; k<90; k++) {
+                            tempDate.setDate(tempDate.getDate() + 1);
+                            if (tempDate > target) break;
+                            if (tempDate.getDate() === exp.day) {
+                                results.expenses.push({ name: exp.name, amount: exp.amount, dateStr: `${tempDate.getMonth()+1}/${tempDate.getDate()}` });
+                                results.finalBalance -= (Number(exp.amount)||0);
+                            }
+                        }
+                    });
+                }
+
+                // 3. 卡費 (邏輯：如果該卡的「繳款截止日」在 預演日 之前/或當天，代表我那天必須把錢付掉)
+                // 這裡簡化計算：只看 currentDebt，當作所有累積的欠款在下個繳款日要付清
+                if(currentData.value.cards) {
+                    currentData.value.cards.forEach(card => {
+                        let nextClose = new Date(today.getFullYear(), today.getMonth(), card.closeDay);
+                        if(today.getDate() > card.closeDay) nextClose.setMonth(nextClose.getMonth() + 1);
+                        
+                        let dueDate = new Date(nextClose);
+                        dueDate.setDate(dueDate.getDate() + (card.payGap||15));
+
+                        // 如果這張卡的繳款日，是在 預演目標日 之前 (或當天)
+                        // 代表到那天為止，我必須付掉這筆錢
+                        if(dueDate <= target && card.currentDebt > 0) {
+                             results.cards.push({ 
+                                 name: card.name, 
+                                 amount: card.currentDebt, 
+                                 dueDate: `${dueDate.getMonth()+1}/${dueDate.getDate()}`
+                             });
+                             results.finalBalance -= (Number(card.currentDebt)||0);
+                        }
+                    });
+                }
+
+                return results;
+            });
+
+            // Spending Strategy Logic (V19)
             const analyzeCashFlow = (dueDate) => {
                 const today = new Date();
                 today.setHours(0,0,0,0);
@@ -405,6 +509,7 @@
                         const cashFlow = analyzeCashFlow(dueDate);
                         // Final Balance = Cash + Valid Income - Valid Expenses - Existing Credit Debt - New Spend
                         const finalAccountBalance = totalLiquidAssets.value + cashFlow.totalAmount - totalDebt.value - amount;
+
                         const remainingLimit = (card.limit || 0) - (card.currentDebt || 0);
                         const isOverLimit = (card.limit > 0) && (amount > remainingLimit);
                         const daysDiff = Math.ceil((dueDate - spendDate)/(86400000));
@@ -463,7 +568,8 @@
             const formatMoney = (val) => Number(val).toLocaleString();
 
             return {
-                showSettings, spendingDate, spendingAmount, recommendationMsg, currentRole, currentData,
+                showSettings, showDrillModal, drillDate, drillResult,
+                spendingDate, spendingAmount, recommendationMsg, currentRole, currentData,
                 currentRealLiquidity, totalDebt, totalLiquidAssets, debtRatio, rankedCards, isSaving,
                 switchRole, autoRecommendDate, addAsset, addIncome, addExpense, addCard, saveAndClose, formatDateDisplay, formatMoney
             };
