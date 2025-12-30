@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>資金流向戰略 (V15)</title>
+    <title>資金流向戰略 (V16 記憶版)</title>
     
     <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -25,10 +25,6 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
     
-    <!-- 🔥 Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
     <style>
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #F8FAFC; transition: background-color 0.5s; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -58,11 +54,20 @@
         .type-switch { display: flex; background: #e2e8f0; border-radius: 99px; padding: 3px; cursor: pointer; user-select: none; }
         .type-switch div { flex: 1; text-align: center; font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 99px; transition: all 0.2s; position: relative; z-index: 2; color: #64748b; }
         .type-switch div.active { background: white; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        /* Save Indicator */
+        .save-indicator { position: fixed; bottom: 20px; right: 20px; background: #22c55e; color: white; padding: 8px 16px; border-radius: 99px; font-weight: bold; font-size: 12px; transform: translateY(100px); transition: transform 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 100; display: flex; items-center; gap: 6px; }
+        .save-indicator.show { transform: translateY(0); }
     </style>
 </head>
 <body class="text-slate-600 h-screen overflow-hidden flex flex-col transition-colors duration-500" :class="currentRole === 'me' ? 'bg-indigo-50/50' : 'bg-slate-200'">
 
 <div id="app" v-cloak class="h-full flex flex-col w-full max-w-7xl mx-auto">
+
+    <!-- 保存提示 -->
+    <div class="save-indicator" :class="{ show: isSaving }">
+        <i class="ph-bold ph-check"></i> 資料已自動儲存
+    </div>
 
     <!-- 頂部切換 -->
     <header class="pt-4 px-6 flex justify-center items-center gap-6 shrink-0 z-30">
@@ -72,20 +77,20 @@
         </button>
         <button @click="switchRole('bf')" class="role-btn flex items-center gap-3 bg-slate-800 text-white rounded-full pl-2 pr-6 py-2 shadow-xl" :class="{ active: currentRole === 'bf' }">
             <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl shadow-inner">🧑</div>
-            <div class="text-left"><div class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">BF ACCOUNT</div><div class="font-black text-sm">男友資產</div></div>
+            <div class="text-left"><div class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-0.5">BF ACCOUNT</div><div class="font-black text-sm">黑豬皮蛋資產</div></div>
         </button>
     </header>
 
     <div class="flex-1 flex flex-col lg:flex-row p-4 lg:p-6 gap-4 overflow-hidden">
 
-        <!-- 左側：現實面 (現在手上有的錢) -->
+        <!-- 左側：現實面 -->
         <section class="text-white pt-6 pb-8 px-6 rounded-[2rem] shadow-2xl relative overflow-hidden shrink-0 lg:w-[22rem] flex flex-col transition-colors duration-500"
                  :class="currentRole === 'me' ? 'theme-me-bg' : 'theme-bf-bg'">
             <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
 
             <div class="flex justify-between items-center mb-6 relative z-10">
                 <span class="text-xs font-bold uppercase tracking-wider opacity-80 border border-white/20 px-2 py-0.5 rounded-full">
-                    {{ currentRole === 'me' ? '👩 我的現金流' : '🧑 男友的現金流' }}
+                    {{ currentRole === 'me' ? '👩 我的現金流' : '🧑 黑豬皮蛋的現金流' }}
                 </span>
                 <button @click="showSettings = true" class="bg-white/10 p-2 rounded-full hover:bg-white/20 transition backdrop-blur-sm border border-white/10">
                     <i class="ph-bold ph-gear text-lg"></i>
@@ -93,8 +98,6 @@
             </div>
 
             <div class="relative z-10 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-                
-                <!-- 大數字：回歸現實 -->
                 <div class="mb-6">
                      <div class="text-white/60 text-[10px] font-bold uppercase mb-1 flex items-center gap-1">
                         <i class="ph-fill ph-check-circle"></i> 目前實際資金 (資產 - 負債)
@@ -103,12 +106,8 @@
                           :class="currentRealLiquidity < 0 ? 'text-red-300' : 'text-white'">
                         ${{ formatMoney(currentRealLiquidity) }}
                      </div>
-                     <div class="text-[10px] text-white/40 mt-1">
-                         * 此數字不包含尚未入帳的薪水
-                     </div>
                 </div>
 
-                <!-- 1. 現有資產 -->
                 <div class="space-y-2 mb-4">
                     <div class="text-[10px] font-bold text-white/40 uppercase tracking-widest border-b border-white/10 pb-1 mb-2">現有多少錢 (Assets)</div>
                     <div v-for="(asset, i) in currentData.assets" :key="'asset'+i" class="flex justify-between items-center text-sm">
@@ -117,7 +116,6 @@
                     </div>
                 </div>
 
-                <!-- 2. 目前負債 -->
                 <div class="space-y-2 mb-4">
                     <div class="text-[10px] font-bold text-white/40 uppercase tracking-widest border-b border-white/10 pb-1 mb-2">待繳帳單 (Debt)</div>
                     <div class="flex justify-between items-center text-sm text-red-200">
@@ -126,7 +124,6 @@
                     </div>
                 </div>
 
-                <!-- 3. 未來收入清單 (靜態顯示) -->
                 <div class="space-y-2">
                     <div class="text-[10px] font-bold text-emerald-400/60 uppercase tracking-widest border-b border-white/10 pb-1 mb-2">期待收入 (Pending)</div>
                     <div v-for="(inc, i) in currentData.incomes" :key="'inc'+i" class="flex justify-between items-center text-sm text-emerald-300/80">
@@ -157,7 +154,7 @@
                         <div class="text-[10px] text-slate-400 font-bold uppercase mb-1 ml-1 flex justify-between">
                             <span>本次消費金額</span>
                             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                                目前計算: {{ currentRole==='me'?'我':'男友' }}的帳戶
+                                目前計算: {{ currentRole==='me'?'我':'黑豬皮蛋' }}的帳戶
                             </span>
                         </div>
                         <div class="relative group">
@@ -219,7 +216,6 @@
                                 rankedCards[0].isOverLimit ? 'border-red-200 bg-red-50/50' : (currentRole==='me'?'border-indigo-200 hover:border-indigo-400':'border-slate-300 hover:border-slate-500')
                              ]">
                             
-                            <!-- Header -->
                             <div class="flex justify-between items-start mb-4 relative z-10">
                                 <div>
                                     <h3 class="text-2xl font-black text-slate-800 leading-tight">{{ rankedCards[0].cardName }}</h3>
@@ -235,13 +231,11 @@
                                 </div>
                             </div>
 
-                            <!-- 🔥 V15 只為你：時間軸精算檢測 -->
+                            <!-- 時間軸精算 -->
                             <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-4 relative overflow-hidden">
                                 <div class="flex flex-col gap-3 relative z-10">
-                                    
-                                    <!-- 日期軸 -->
                                     <div class="flex justify-between text-[11px] font-bold text-slate-400 uppercase">
-                                        <span>計畫消費日</span>
+                                        <span>消費日</span>
                                         <span>實際繳款日</span>
                                     </div>
                                     <div class="flex items-center justify-between font-mono font-bold text-slate-700 -mt-1">
@@ -252,11 +246,8 @@
                                         <span class="text-lg text-indigo-900 border-b-2 border-indigo-200">{{ formatDateDisplay(rankedCards[0].dueDate) }}</span>
                                     </div>
 
-                                    <!-- 薪水檢測報告 -->
                                     <div class="bg-white rounded-xl p-3 border border-slate-100 shadow-sm mt-1">
-                                        <div class="text-[10px] uppercase font-bold text-slate-400 mb-2">繳款日前 資金流檢測</div>
-                                        
-                                        <!-- 成功抓到的收入 -->
+                                        <div class="text-[10px] uppercase font-bold text-slate-400 mb-2">繳款日前 資金檢測</div>
                                         <div v-if="rankedCards[0].validIncomes.length > 0" class="space-y-1 mb-2">
                                             <div v-for="inc in rankedCards[0].validIncomes" class="flex justify-between items-center text-xs">
                                                 <span class="flex items-center gap-1 font-bold text-emerald-600">
@@ -265,9 +256,8 @@
                                                 <span class="font-mono font-bold text-emerald-600">+${{ formatMoney(inc.amount) }}</span>
                                             </div>
                                         </div>
-                                        <div v-else class="text-xs text-slate-400 italic mb-2">期間無薪水入帳...</div>
-
-                                        <!-- ⚠️ 警告：錯過的收入 -->
+                                        <div v-else class="text-xs text-slate-400 italic mb-2">⚠ 期間無薪水入帳</div>
+                                        
                                         <div v-if="rankedCards[0].missedIncomes.length > 0" class="border-t border-dashed border-red-100 pt-2 space-y-1">
                                             <div v-for="miss in rankedCards[0].missedIncomes" class="flex justify-between items-center text-xs opacity-70">
                                                 <span class="flex items-center gap-1 font-bold text-red-400">
@@ -276,19 +266,14 @@
                                                 <span class="font-mono font-bold text-slate-400 line-through">${{ formatMoney(miss.amount) }}</span>
                                             </div>
                                         </div>
-
                                     </div>
 
-                                    <!-- 最終結算 -->
                                     <div class="flex justify-between items-end pt-1">
                                         <span class="text-xs font-bold text-slate-600 pb-1">當天預估餘額</span>
                                         <div class="text-2xl font-mono font-black leading-none"
                                               :class="rankedCards[0].finalAccountBalance < 0 ? 'text-red-500' : 'text-indigo-600'">
                                             ${{ formatMoney(rankedCards[0].finalAccountBalance) }}
                                         </div>
-                                    </div>
-                                    <div v-if="rankedCards[0].finalAccountBalance < 0" class="text-[10px] text-red-500 font-bold text-right bg-red-50 inline-block ml-auto px-2 py-0.5 rounded">
-                                        資金缺口! 請注意
                                     </div>
                                 </div>
                             </div>
@@ -321,6 +306,7 @@
                 
                 <div v-else class="text-center py-24 text-slate-400">
                      <p class="font-bold">尚無可用「主力卡」</p>
+                     <p class="text-xs mt-1">請至設定確認卡片類型</p>
                 </div>
             </div>
         </main>
@@ -421,7 +407,6 @@
                         </button>
                     </div>
                 </section>
-
                 <div class="h-10"></div>
             </div>
         </div>
@@ -429,22 +414,8 @@
 </div>
 
 <script>
-    const { createApp, ref, computed, onMounted } = Vue;
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBCvq1YfQh8yEtwjIluuVxNFXzZHi7mYIo",
-      authDomain: "cash-flow-hunter.firebaseapp.com",
-      databaseURL: "https://cash-flow-hunter-default-rtdb.firebaseio.com",
-      projectId: "cash-flow-hunter",
-      storageBucket: "cash-flow-hunter.firebasestorage.app",
-      messagingSenderId: "389480711948",
-      appId: "1:389480711948:web:a67603ad27b3176240eb29"
-    };
-
-    let db;
-    try { firebase.initializeApp(firebaseConfig); db = firebase.database(); } catch(e) {}
-
-    const DB_PATH = 'wealth_universe_v15'; // Upgraded to V15
+    const { createApp, ref, computed, onMounted, watch } = Vue;
+    const STORAGE_KEY = 'wealth_strategy_v16_local';
 
     createApp({
         setup() {
@@ -453,32 +424,48 @@
             const spendingAmount = ref(null);
             const recommendationMsg = ref('');
             const currentRole = ref('me');
+            const isSaving = ref(false);
 
-            const wealthData = ref({
+            // 預設資料 (若無存檔時使用)
+            const defaultData = {
                 me: {
                     assets: [{name: '銀行存款', amount: 0}],
-                    incomes: [{name: '公司薪水', amount: 40000, day: 30}],
+                    incomes: [{name: '薪水', amount: 40000, day: 5}],
                     cards: [
-                        { name: 'CUBE卡', type: 'main', closeDay: 17, payGap: 14, currentDebt: 0, limit: 100000 },
+                        { name: 'CUBE卡', type: 'main', closeDay: 27, payGap: 15, currentDebt: 0, limit: 100000 },
                         { name: '聯邦卡', type: 'main', closeDay: 10, payGap: 18, currentDebt: 0, limit: 10000 }
                     ]
                 },
                 bf: {
-                    assets: [{name: '生活費', amount: 0}],
+                    assets: [{name: '零用金', amount: 0}],
                     incomes: [{name: '薪水', amount: 45000, day: 10}],
-                    cards: [
-                        { name: '聯邦卡', type: 'main', closeDay: 5, payGap: 20, currentDebt: 0, limit: 80000 }
-                    ]
+                    cards: [{ name: '聯邦卡', type: 'main', closeDay: 5, payGap: 20, currentDebt: 0, limit: 80000 }]
+                }
+            };
+
+            const wealthData = ref(defaultData);
+
+            // 🔥 Local Storage Logic
+            onMounted(() => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    try {
+                        wealthData.value = JSON.parse(saved);
+                    } catch(e) { console.error('Load Error', e); }
                 }
             });
 
-            const currentData = computed(() => wealthData.value[currentRole.value]);
+            // 自動存檔監聽
+            watch(wealthData, (newVal) => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(newVal));
+                isSaving.value = true;
+                setTimeout(() => isSaving.value = false, 1500);
+            }, { deep: true });
 
+            const currentData = computed(() => wealthData.value[currentRole.value]);
             const totalLiquidAssets = computed(() => (currentData.value.assets || []).reduce((sum, a) => sum + (Number(a.amount)||0), 0));
             const totalDebt = computed(() => (currentData.value.cards || []).reduce((sum, c) => sum + (Number(c.currentDebt)||0), 0));
-            // 左側面板只顯示「現實」，不加未來薪水
             const currentRealLiquidity = computed(() => totalLiquidAssets.value - totalDebt.value);
-
             const debtRatio = computed(() => {
                 const total = totalLiquidAssets.value;
                 if (total === 0) return totalDebt.value > 0 ? 100 : 0;
@@ -490,24 +477,17 @@
                 recommendationMsg.value = '';
             };
 
-            // 🔥 時間軸精算函式
-            // 返回：{ totalAmount: 123, valid: [...], missed: [...] }
             const analyzeIncomeTimeline = (dueDate) => {
                 const today = new Date();
                 today.setHours(0,0,0,0);
-                
                 let result = { totalAmount: 0, validIncomes: [], missedIncomes: [] };
-                
                 if (!currentData.value.incomes) return result;
 
                 currentData.value.incomes.forEach(inc => {
                     let tempDate = new Date(today);
-                    // Check next 60 days
                     for(let k=0; k<60; k++) {
                         tempDate.setDate(tempDate.getDate() + 1);
-                        // If we pass the deadline, stop specific scan for this income instance
                         if (tempDate > dueDate) {
-                            // Check if an income happens *shortly after* (e.g. 3 days after) to warn user
                             if( (tempDate - dueDate) / 86400000 <= 3 && tempDate.getDate() === inc.day) {
                                 result.missedIncomes.push({
                                     name: inc.name, amount: inc.amount, 
@@ -516,13 +496,9 @@
                             }
                             break; 
                         }
-                        
                         if (tempDate.getDate() === inc.day) {
                             result.totalAmount += (Number(inc.amount)||0);
-                            result.validIncomes.push({
-                                name: inc.name, amount: inc.amount,
-                                dateStr: `${tempDate.getMonth()+1}/${tempDate.getDate()}`
-                            });
+                            result.validIncomes.push({ name: inc.name, amount: inc.amount, dateStr: `${tempDate.getMonth()+1}/${tempDate.getDate()}` });
                         }
                     }
                 });
@@ -542,12 +518,8 @@
                         let dueDate = new Date(stmtDate);
                         dueDate.setDate(dueDate.getDate() + (card.payGap || 15));
                         
-                        // 🔥 使用時間軸檢測
                         const incomeAnalysis = analyzeIncomeTimeline(dueDate);
-                        
-                        // 最終餘額 = 現有存款 + 來得及的收入 - 總負債 - 這次消費
                         const finalAccountBalance = totalLiquidAssets.value + incomeAnalysis.totalAmount - totalDebt.value - amount;
-
                         const remainingLimit = (card.limit || 0) - (card.currentDebt || 0);
                         const isOverLimit = (card.limit > 0) && (amount > remainingLimit);
                         const daysDiff = Math.ceil((dueDate - spendDate)/(86400000));
@@ -563,7 +535,6 @@
                     .sort((a,b) => {
                         if (a.isOverLimit && !b.isOverLimit) return 1;
                         if (!a.isOverLimit && b.isOverLimit) return -1;
-                        // 優先顯示餘額大於0的，如果都大於0，選天數長的
                         if (a.finalAccountBalance >= 0 && b.finalAccountBalance < 0) return -1;
                         if (a.finalAccountBalance < 0 && b.finalAccountBalance >= 0) return 1;
                         return b.daysDiff - a.daysDiff;
@@ -575,56 +546,29 @@
                 today.setHours(0,0,0,0);
                 let bestOption = null;
                 let maxDays = -1;
-
-                (currentData.value.cards || [])
-                    .filter(card => !card.type || card.type === 'main') 
-                    .forEach(card => {
-                        let targetDate = new Date(today.getFullYear(), today.getMonth(), card.closeDay + 1);
-                        if (targetDate < today) targetDate.setMonth(targetDate.getMonth() + 1);
-                        let virtualSpend = targetDate;
-                        let stmtDate = new Date(virtualSpend.getFullYear(), virtualSpend.getMonth(), card.closeDay);
-                        if (virtualSpend.getDate() > card.closeDay) stmtDate.setMonth(stmtDate.getMonth() + 1);
-                        let dueDate = new Date(stmtDate);
-                        dueDate.setDate(dueDate.getDate() + (card.payGap || 15));
-                        const daysDiff = Math.ceil((dueDate - virtualSpend)/(86400000));
-                        
-                        if (daysDiff > maxDays) {
-                            maxDays = daysDiff;
-                            bestOption = { date: targetDate, cardName: card.name, days: daysDiff };
-                        }
-                    });
-
+                (currentData.value.cards || []).filter(c => !c.type || c.type==='main').forEach(card => {
+                    let targetDate = new Date(today.getFullYear(), today.getMonth(), card.closeDay + 1);
+                    if (targetDate < today) targetDate.setMonth(targetDate.getMonth() + 1);
+                    let stmtDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), card.closeDay);
+                    if (targetDate.getDate() > card.closeDay) stmtDate.setMonth(stmtDate.getMonth() + 1);
+                    let dueDate = new Date(stmtDate);
+                    dueDate.setDate(dueDate.getDate() + (card.payGap || 15));
+                    const daysDiff = Math.ceil((dueDate - targetDate)/(86400000));
+                    if (daysDiff > maxDays) { maxDays = daysDiff; bestOption = { date: targetDate, cardName: card.name, days: daysDiff }; }
+                });
                 if (bestOption) {
                     const y = bestOption.date.getFullYear();
                     const m = String(bestOption.date.getMonth() + 1).padStart(2, '0');
                     const d = String(bestOption.date.getDate()).padStart(2, '0');
                     spendingDate.value = `${y}-${m}-${d}`;
                     recommendationMsg.value = `建議 ${m}/${d} 刷「${bestOption.cardName}」，獲得 ${bestOption.days} 天緩衝！`;
-                } else {
-                    recommendationMsg.value = `無適合的主力卡可推薦`;
-                }
+                } else recommendationMsg.value = `無適合卡片`;
             };
 
             const addAsset = () => { if(!currentData.value.assets) currentData.value.assets=[]; currentData.value.assets.push({name:'', amount:0}); };
             const addIncome = () => { if(!currentData.value.incomes) currentData.value.incomes=[]; currentData.value.incomes.push({name:'', amount:0, day:5}); };
             const addCard = () => { if(!currentData.value.cards) currentData.value.cards=[]; currentData.value.cards.push({name:'', type:'main', closeDay:1, payGap:15, currentDebt:0, limit:0}); };
-
-            onMounted(() => {
-                if (!db) return;
-                db.ref(DB_PATH).on('value', (snapshot) => {
-                    const val = snapshot.val();
-                    if (val) {
-                        if(val.me) wealthData.value.me = val.me;
-                        if(val.bf) wealthData.value.bf = val.bf;
-                    }
-                });
-            });
-
-            const saveAndClose = () => {
-                if(db) db.ref(DB_PATH).set(JSON.parse(JSON.stringify(wealthData.value)));
-                showSettings.value = false;
-            };
-
+            const saveAndClose = () => { showSettings.value = false; };
             const formatDateDisplay = (val) => {
                 if(!val) return '--/--';
                 try { const d = new Date(val); return isNaN(d) ? '' : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; } catch { return ''; }
@@ -633,7 +577,7 @@
 
             return {
                 showSettings, spendingDate, spendingAmount, recommendationMsg, currentRole, currentData,
-                currentRealLiquidity, totalDebt, totalLiquidAssets, debtRatio, rankedCards,
+                currentRealLiquidity, totalDebt, debtRatio, rankedCards, isSaving,
                 switchRole, autoRecommendDate, addAsset, addIncome, addCard, saveAndClose, formatDateDisplay, formatMoney
             };
         }
